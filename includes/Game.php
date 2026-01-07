@@ -441,10 +441,11 @@ class Game {
      * Get rank progress to next level
      */
     public function getRankProgress() {
-        $rank = $this->getUserRank();
-        
-        // If ranks table doesn't exist, return default values
-        if (!$rank) {
+        // First check if table exists
+        try {
+            $testStmt = $this->db->query("SELECT 1 FROM user_ranks LIMIT 1");
+        } catch (PDOException $e) {
+            // Table doesn't exist
             return [
                 'current_rank' => 'Novice Detective',
                 'current_level' => 1,
@@ -461,6 +462,30 @@ class Game {
                     'current_streak' => 0
                 ],
                 'table_missing' => true
+            ];
+        }
+        
+        $rank = $this->getUserRank();
+        
+        // If getUserRank returns null but table exists, create default rank data
+        if (!$rank) {
+            // Table exists but no rank record - return default (will be created on first completion)
+            return [
+                'current_rank' => 'Novice Detective',
+                'current_level' => 1,
+                'next_rank' => 'Junior Detective',
+                'progress' => 0,
+                'needed' => 3,
+                'percentage' => 0,
+                'stats' => [
+                    'total_completions' => 0,
+                    'easy_completions' => 0,
+                    'medium_completions' => 0,
+                    'hard_completions' => 0,
+                    'perfect_scores' => 0,
+                    'current_streak' => 0
+                ],
+                'table_missing' => false  // Table exists, just no rank record yet
             ];
         }
         
