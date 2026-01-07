@@ -70,7 +70,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate'])) {
                     $success = "Puzzle generated and saved successfully! 🎨 Image generated! <a href='puzzle-edit.php?id={$puzzleId}'>Edit puzzle</a>";
                 } else {
                     $imageError = isset($generatedPuzzle['image_generation_error']) ? $generatedPuzzle['image_generation_error'] : 'Unknown error';
-                    $success = "Puzzle generated and saved successfully! ⚠️ Image generation failed: " . htmlspecialchars($imageError) . " <a href='puzzle-edit.php?id={$puzzleId}'>Edit puzzle</a>";
+                    
+                    // Check if it's a billing error
+                    $isBillingError = strpos($imageError, 'billing') !== false || strpos($imageError, 'quota') !== false || strpos($imageError, 'limit') !== false;
+                    
+                    if ($isBillingError) {
+                        $success = "Puzzle generated and saved successfully! ⚠️ <strong>Image generation skipped:</strong> " . htmlspecialchars($imageError) . "<br><small>You can generate images later when billing limits are resolved, or use the 'Generate New AI Image' button on the edit page.</small> <a href='puzzle-edit.php?id={$puzzleId}'>Edit puzzle</a>";
+                    } else {
+                        $success = "Puzzle generated and saved successfully! ⚠️ Image generation failed: " . htmlspecialchars($imageError) . " <a href='puzzle-edit.php?id={$puzzleId}'>Edit puzzle</a>";
+                    }
                 }
             } else {
                 $success = "Puzzle generated and saved successfully! <a href='puzzle-edit.php?id={$puzzleId}'>Edit puzzle</a>";
@@ -137,8 +145,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_all'])) {
                 
                 $difficultyLabel = ucfirst($difficulty);
                 if ($generateImage && !$imagePath && isset($generatedPuzzle['image_generation_error'])) {
-                    $difficultyLabel .= " (image failed)";
-                    $errors[] = ucfirst($difficulty) . " image: " . $generatedPuzzle['image_generation_error'];
+                    $imageError = $generatedPuzzle['image_generation_error'];
+                    $isBillingError = strpos($imageError, 'billing') !== false || strpos($imageError, 'quota') !== false || strpos($imageError, 'limit') !== false;
+                    
+                    if ($isBillingError) {
+                        $difficultyLabel .= " (image skipped - billing limit)";
+                    } else {
+                        $difficultyLabel .= " (image failed)";
+                        $errors[] = ucfirst($difficulty) . " image: " . $imageError;
+                    }
                 }
                 $generated[] = $difficultyLabel;
             }
@@ -151,7 +166,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_all'])) {
         $imageNote = $imagesGenerated > 0 ? " ({$imagesGenerated} images generated)" : "";
         $success = "Generated puzzles: " . implode(", ", $generated) . $imageNote;
         if ($generateImage && $imagesGenerated === 0) {
-            $success .= " ⚠️ No images were generated. Check that OPENAI_API_KEY is set in .env";
+            $success .= "<br><small>⚠️ No images were generated. ";
+            if (!empty($errors)) {
+                $billingErrors = array_filter($errors, function($e) {
+                    return strpos($e, 'billing') !== false || strpos($e, 'quota') !== false || strpos($e, 'limit') !== false;
+                });
+                if (!empty($billingErrors)) {
+                    $success .= "OpenAI billing/quota limit reached. Check your OpenAI account settings or generate images later using the edit page.</small>";
+                } else {
+                    $success .= "Check that OPENAI_API_KEY is set correctly in .env</small>";
+                }
+            } else {
+                $success .= "Check that OPENAI_API_KEY is set correctly in .env</small>";
+            }
         }
     }
     if (!empty($errors)) {
@@ -240,6 +267,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_all'])) {
                         <?php if (empty(EnvLoader::get('OPENAI_API_KEY'))): ?>
                             <div style="margin-top: 10px; padding: 10px; background: #fff3cd; border: 2px solid #ffc107; border-radius: 4px; color: #856404;">
                                 ⚠️ <strong>Warning:</strong> OPENAI_API_KEY not found in .env file. Image generation will fail.
+                            </div>
+                        <?php else: ?>
+                            <div style="margin-top: 10px; padding: 10px; background: #e3f2fd; border: 2px solid #2196F3; border-radius: 4px; color: #1565c0; font-size: 12px;">
+                                💡 <strong>Tip:</strong> If you hit billing limits, you can generate puzzles without images now, then add images later using the "Generate New AI Image" button on the edit page.
                             </div>
                         <?php endif; ?>
                     </div>

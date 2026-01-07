@@ -166,6 +166,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         header('Location: puzzle-edit.php?id=' . $puzzleId);
         exit;
     }
+
+    if ($_POST['action'] === 'upload_solution_image') {
+        if (!isset($_FILES['image_file']) || $_FILES['image_file']['error'] !== UPLOAD_ERR_OK) {
+            $error = 'File upload failed. Please select a valid image file.';
+        } else {
+            $file = $_FILES['image_file'];
+            
+            // Validate file type
+            $allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+            $fileType = mime_content_type($file['tmp_name']);
+            
+            if (!in_array($fileType, $allowedTypes)) {
+                $error = 'Invalid file type. Please upload a JPEG, PNG, GIF, or WebP image.';
+            } else {
+                // Create images directory if it doesn't exist
+                $imagesDir = __DIR__ . '/../images/solutions';
+                if (!is_dir($imagesDir)) {
+                    mkdir($imagesDir, 0755, true);
+                }
+                
+                // Generate unique filename
+                $extension = pathinfo($file['name'], PATHINFO_EXTENSION);
+                $filename = 'solution_' . $puzzleId . '_' . uniqid() . '_' . time() . '.' . $extension;
+                $filepath = $imagesDir . '/' . $filename;
+                
+                // Move uploaded file
+                if (move_uploaded_file($file['tmp_name'], $filepath)) {
+                    // Save path to database
+                    $relativePath = 'images/solutions/' . $filename;
+                    $imagePrompt = !empty($_POST['upload_image_prompt']) ? $_POST['upload_image_prompt'] : null;
+                    
+                    $stmt = $db->prepare("
+                        UPDATE solutions 
+                        SET image_path = ?, image_prompt = ?
+                        WHERE puzzle_id = ?
+                    ");
+                    $stmt->execute([$relativePath, $imagePrompt, $puzzleId]);
+                    $success = 'Image uploaded successfully!';
+                } else {
+                    $error = 'Failed to save uploaded file. Please check directory permissions.';
+                }
+            }
+        }
+        header('Location: puzzle-edit.php?id=' . $puzzleId);
+        exit;
+    }
 }
 
 if ($editMode) {
@@ -385,10 +431,37 @@ if ($editMode) {
                         </div>
                     <?php endif; ?>
 
+                    <div style="margin-bottom: 20px; padding: 15px; background: #f0f7ff; border: 2px solid #2196F3; border-radius: 4px;">
+                        <h4 style="margin-bottom: 10px;">Upload Locally Generated Image</h4>
+                        <p style="font-size: 13px; color: #666; margin-bottom: 10px;">
+                            Generate images locally using Stable Diffusion or any other tool, then upload them here.
+                        </p>
+                        <form method="POST" enctype="multipart/form-data" style="margin-bottom: 0;">
+                            <input type="hidden" name="action" value="upload_solution_image">
+                            
+                            <div class="form-group" style="margin-bottom: 10px;">
+                                <label for="image_file">Select Image File</label>
+                                <input type="file" id="image_file" name="image_file" accept="image/jpeg,image/jpg,image/png,image/gif,image/webp" required>
+                                <small style="display: block; margin-top: 5px; color: #666;">
+                                    Accepted formats: JPEG, PNG, GIF, WebP (Max recommended: 1024x1024px)
+                                </small>
+                            </div>
+                            
+                            <div class="form-group" style="margin-bottom: 10px;">
+                                <label for="upload_image_prompt">Image Prompt (optional)</label>
+                                <textarea id="upload_image_prompt" name="upload_image_prompt" rows="2" placeholder="Describe the image prompt used (for reference)"><?php echo $solution && !empty($solution['image_prompt']) ? htmlspecialchars($solution['image_prompt']) : ''; ?></textarea>
+                            </div>
+                            
+                            <button type="submit" class="btn" style="background: #4CAF50; color: white;">
+                                📤 Upload Image
+                            </button>
+                        </form>
+                    </div>
+
                     <form method="POST" style="margin-bottom: 15px;">
                         <input type="hidden" name="action" value="generate_solution_image">
                         <button type="submit" class="btn" style="background: #2196F3; color: white;">
-                            🎨 Generate New AI Image (DALL-E)
+                            🎨 Generate AI Image (DALL-E)
                         </button>
                         <small style="display: block; margin-top: 5px; color: #666;">
                             Requires OPENAI_API_KEY in .env file. Generates a new image based on the puzzle theme and solution.

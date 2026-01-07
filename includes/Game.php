@@ -190,6 +190,20 @@ class Game {
             return null;
         }
         
+        // Ensure session exists in user_sessions first (required for foreign key)
+        try {
+            $sessionCheck = $this->db->prepare("SELECT 1 FROM user_sessions WHERE session_id = ?");
+            $sessionCheck->execute([$this->sessionId]);
+            if (!$sessionCheck->fetch()) {
+                // Session doesn't exist, create it
+                $createSession = $this->db->prepare("INSERT INTO user_sessions (session_id) VALUES (?)");
+                $createSession->execute([$this->sessionId]);
+            }
+        } catch (PDOException $e) {
+            // If user_sessions table doesn't exist, that's okay - ranks won't work but won't crash
+            error_log("Warning: user_sessions table may not exist: " . $e->getMessage());
+        }
+        
         try {
             $stmt = $this->db->prepare("SELECT * FROM user_ranks WHERE session_id = ?");
             $stmt->execute([$this->sessionId]);

@@ -209,6 +209,20 @@ class AIPuzzleGenerator {
         curl_close($ch);
         
         if ($httpCode !== 200) {
+            $errorData = json_decode($response, true);
+            
+            // Check for specific billing/quota errors
+            if (isset($errorData['error'])) {
+                $errorCode = $errorData['error']['code'] ?? '';
+                $errorMessage = $errorData['error']['message'] ?? '';
+                
+                if ($errorCode === 'billing_hard_limit_reached' || strpos($errorMessage, 'billing') !== false || strpos($errorMessage, 'limit') !== false) {
+                    throw new Exception("OpenAI billing/quota limit reached. Please check your OpenAI account billing settings or use a different API key. Images will be skipped for now.");
+                }
+                
+                throw new Exception("DALL-E API error: " . $errorMessage . " (Code: {$errorCode})");
+            }
+            
             throw new Exception("DALL-E API error (HTTP {$httpCode}): " . $response);
         }
         
