@@ -95,19 +95,68 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 
     if ($_POST['action'] === 'save_solution') {
+        $imagePath = !empty($_POST['image_path']) ? $_POST['image_path'] : null;
+        $imagePrompt = !empty($_POST['image_prompt']) ? $_POST['image_prompt'] : null;
+        
         $stmt = $db->prepare("
-            INSERT INTO solutions (puzzle_id, explanation, detailed_reasoning)
-            VALUES (?, ?, ?)
+            INSERT INTO solutions (puzzle_id, explanation, detailed_reasoning, image_path, image_prompt)
+            VALUES (?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE
                 explanation = VALUES(explanation),
-                detailed_reasoning = VALUES(detailed_reasoning)
+                detailed_reasoning = VALUES(detailed_reasoning),
+                image_path = VALUES(image_path),
+                image_prompt = VALUES(image_prompt)
         ");
         $stmt->execute([
             $puzzleId,
             $_POST['explanation'],
-            $_POST['detailed_reasoning']
+            $_POST['detailed_reasoning'],
+            $imagePath,
+            $imagePrompt
         ]);
         $success = 'Solution saved!';
+        header('Location: puzzle-edit.php?id=' . $puzzleId);
+        exit;
+    }
+
+    if ($_POST['action'] === 'generate_solution_image') {
+        require_once '../includes/AIPuzzleGenerator.php';
+        
+        // Get puzzle data for image generation
+        $puzzleData = $puzzle->getPuzzleById($puzzleId);
+        $solution = $puzzle->getSolution($puzzleId);
+        
+        if (!$puzzleData || !$solution) {
+            $error = 'Puzzle or solution not found';
+        } else {
+            try {
+                $generator = new AIPuzzleGenerator('openai'); // Use OpenAI for DALL-E
+                $puzzleArray = [
+                    'theme' => $puzzleData['theme'] ?? 'mystery',
+                    'title' => $puzzleData['title'] ?? 'case',
+                    'solution' => [
+                        'explanation' => $solution['explanation'] ?? ''
+                    ]
+                ];
+                
+                $imageData = $generator->generateSolutionImage($puzzleArray);
+                
+                if ($imageData) {
+                    // Update solution with image
+                    $stmt = $db->prepare("
+                        UPDATE solutions 
+                        SET image_path = ?, image_prompt = ?
+                        WHERE puzzle_id = ?
+                    ");
+                    $stmt->execute([$imageData['path'], $imageData['prompt'], $puzzleId]);
+                    $success = 'Solution image generated successfully!';
+                } else {
+                    $error = 'Failed to generate image. Make sure OPENAI_API_KEY is set in .env';
+                }
+            } catch (Exception $e) {
+                $error = 'Error generating image: ' . $e->getMessage();
+            }
+        }
         header('Location: puzzle-edit.php?id=' . $puzzleId);
         exit;
     }
@@ -296,6 +345,33 @@ if ($editMode) {
                 <div class="form-card">
                     <h3>Solution Explanation</h3>
 
+                    <?php if ($solution && !empty($solution['image_path'])): ?>
+                        <div style="margin-bottom: 20px; padding: 15px; background: #f9f9f9; border: 2px solid #ddd; border-radius: 4px;">
+                            <h4 style="margin-bottom: 10px;">Current Solution Image</h4>
+                            <div style="text-align: center;">
+                                <img src="../<?php echo htmlspecialchars($solution['image_path']); ?>" 
+                                     alt="Solution illustration" 
+                                     style="max-width: 100%; max-height: 400px; border: 2px solid #8b4513; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                            </div>
+                            <?php if (!empty($solution['image_prompt'])): ?>
+                                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                                    <strong>Image Prompt:</strong><br>
+                                    <em><?php echo htmlspecialchars($solution['image_prompt']); ?></em>
+                                </p>
+                            <?php endif; ?>
+                        </div>
+                    <?php endif; ?>
+
+                    <form method="POST" style="margin-bottom: 15px;">
+                        <input type="hidden" name="action" value="generate_solution_image">
+                        <button type="submit" class="btn" style="background: #2196F3; color: white;">
+                            🎨 Generate New AI Image (DALL-E)
+                        </button>
+                        <small style="display: block; margin-top: 5px; color: #666;">
+                            Requires OPENAI_API_KEY in .env file. Generates a new image based on the puzzle theme and solution.
+                        </small>
+                    </form>
+
                     <form method="POST">
                         <input type="hidden" name="action" value="save_solution">
 
@@ -307,6 +383,24 @@ if ($editMode) {
                         <div class="form-group">
                             <label for="detailed_reasoning">Detailed Reasoning</label>
                             <textarea id="detailed_reasoning" name="detailed_reasoning" style="min-height: 200px;" required><?php echo $solution ? htmlspecialchars($solution['detailed_reasoning']) : ''; ?></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="image_path">Image Path (Manual Entry)</label>
+                            <input type="text" id="image_path" name="image_path" 
+                                   value="<?php echo $solution && !empty($solution['image_path']) ? htmlspecialchars($solution['image_path']) : ''; ?>"
+                                   placeholder="e.g., images/solutions/solution_123.png">
+                            <small style="display: block; margin-top: 5px; color: #666;">
+                                Leave empty to keep current image, or enter a new path. Use the "Generate New AI Image" button above for automatic generation.
+                            </small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="image_prompt">Image Prompt (for reference)</label>
+                            <textarea id="image_prompt" name="image_prompt" rows="3"><?php echo $solution && !empty($solution['image_prompt']) ? htmlspecialchars($solution['image_prompt']) : ''; ?></textarea>
+                            <small style="display: block; margin-top: 5px; color: #666;">
+                                The prompt used to generate the image (auto-filled when generating via AI).
+                            </small>
                         </div>
 
                         <button type="submit" class="btn btn-primary">Save Solution</button>

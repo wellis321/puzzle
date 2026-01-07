@@ -54,8 +54,14 @@ class AIPuzzleGenerator {
         }
     }
 
-    public function generatePuzzle($date, $difficulty, $generateImage = false) {
-        $prompt = $this->buildPrompt($difficulty);
+    public function generatePuzzle($date, $difficulty, $generateImage = false, $avoidSimilar = true) {
+        // Get recent puzzles to avoid similarity
+        $recentPuzzles = [];
+        if ($avoidSimilar) {
+            $recentPuzzles = $this->getRecentPuzzles($date, 14); // Check last 14 days
+        }
+        
+        $prompt = $this->buildPrompt($difficulty, $recentPuzzles);
         $response = $this->callAI($prompt);
         $puzzle = $this->parseResponse($response, $difficulty);
         
@@ -76,7 +82,39 @@ class AIPuzzleGenerator {
     }
     
     /**
+     * Get recent puzzles to avoid similarity
+     */
+    private function getRecentPuzzles($currentDate, $daysBack = 14) {
+        try {
+            $puzzle = new Puzzle();
+            $recentPuzzles = [];
+            
+            // Check puzzles from the last N days
+            for ($i = 1; $i <= $daysBack; $i++) {
+                $checkDate = date('Y-m-d', strtotime($currentDate . " -{$i} days"));
+                $puzzles = $puzzle->getPuzzlesByDate($checkDate);
+                if (!empty($puzzles)) {
+                    foreach ($puzzles as $p) {
+                        $recentPuzzles[] = [
+                            'title' => $p['title'] ?? '',
+                            'theme' => $p['theme'] ?? '',
+                            'date' => $checkDate
+                        ];
+                    }
+                }
+            }
+            
+            return $recentPuzzles;
+        } catch (Exception $e) {
+            // If error, return empty array - better to generate than fail
+            error_log("Error fetching recent puzzles: " . $e->getMessage());
+            return [];
+        }
+    }
+    
+    /**
      * Generate an image for the solution based on puzzle content
+     * Public method for use in admin pages
      */
     public function generateSolutionImage($puzzle) {
         // Create a prompt for image generation based on the puzzle
