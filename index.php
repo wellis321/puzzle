@@ -248,11 +248,27 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                             <h3>The Solution</h3>
                             
                             <?php if (!empty($solution['image_path'])): ?>
+                                <?php
+                                // Check if image file exists
+                                $imageFullPath = __DIR__ . '/' . $solution['image_path'];
+                                $imageExists = file_exists($imageFullPath);
+                                ?>
                                 <div class="solution-image-container">
-                                    <img src="<?php echo htmlspecialchars($solution['image_path']); ?>" 
-                                         alt="Solution illustration" 
-                                         class="solution-image"
-                                         loading="lazy">
+                                    <?php if ($imageExists): ?>
+                                        <img src="<?php echo htmlspecialchars($solution['image_path']); ?>" 
+                                             alt="Solution illustration" 
+                                             class="solution-image"
+                                             loading="lazy"
+                                             onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                        <div style="display:none; padding:15px; background:#ffebee; color:#c62828; border:2px solid #c62828; border-radius:4px;">
+                                            ⚠️ Image could not be loaded from: <?php echo htmlspecialchars($solution['image_path']); ?>
+                                        </div>
+                                    <?php else: ?>
+                                        <div style="padding:15px; background:#fff3cd; color:#856404; border:2px solid #ffc107; border-radius:4px;">
+                                            ⚠️ Image file not found at: <code><?php echo htmlspecialchars($solution['image_path']); ?></code><br>
+                                            <small>The image path exists in the database but the file is missing. Generate a new image or check the path.</small>
+                                        </div>
+                                    <?php endif; ?>
                                 </div>
                             <?php endif; ?>
                             
@@ -578,12 +594,25 @@ if (EnvLoader::get('APP_ENV') === 'development') {
         // Handle statement clicks
         document.querySelectorAll('.statement-btn').forEach(btn => {
             btn.addEventListener('click', async function() {
-                if (this.disabled) return;
+                if (this.disabled || this.classList.contains('loading') || this.classList.contains('wrong')) return;
 
                 const statementId = this.dataset.statementId;
+                const clickedButton = this;
 
-                // Disable all buttons
-                document.querySelectorAll('.statement-btn').forEach(b => b.disabled = true);
+                // Show loading state
+                clickedButton.classList.add('loading');
+                clickedButton.disabled = true;
+                
+                // Disable other buttons with visual feedback
+                document.querySelectorAll('.statement-btn').forEach(b => {
+                    if (b !== clickedButton && !b.classList.contains('wrong')) {
+                        b.classList.add('disabled');
+                        b.disabled = true;
+                    }
+                });
+
+                // Show loading feedback immediately
+                showFeedback('🔄 Checking your answer...', 'loading');
 
                 try {
                     const response = await fetch('api/submit-answer.php', {
@@ -599,33 +628,91 @@ if (EnvLoader::get('APP_ENV') === 'development') {
 
                     const result = await response.json();
 
+                    // Remove loading state
+                    clickedButton.classList.remove('loading');
+
                     if (result.success) {
                         if (result.is_correct) {
-                            this.classList.add('correct');
-                            showFeedback('✓ Correct! You found the inconsistency!', 'success');
+                            // Success! Celebrate
+                            clickedButton.classList.add('correct');
+                            
+                            // Show all buttons briefly
+                            document.querySelectorAll('.statement-btn').forEach(b => {
+                                b.classList.remove('disabled');
+                            });
+                            
+                            // Show prominent success message
+                            showFeedback('🎉 Correct! You found the inconsistency! Well done!', 'success');
+                            
+                            // Add celebration animation
+                            clickedButton.style.animation = 'pulseSuccess 0.6s ease-in-out 3';
+                            
+                            // Smooth transition to completion screen
                             setTimeout(() => {
                                 window.location.reload();
-                            }, 2000);
+                            }, 2500);
                         } else {
-                            this.classList.add('wrong');
+                            // Wrong answer
+                            clickedButton.classList.add('wrong');
+                            
                             if (result.attempts_remaining > 0) {
-                                showFeedback(`✗ Not quite. ${result.attempts_remaining} attempt(s) remaining.`, 'error');
-                                // Re-enable buttons
+                                showFeedback(`❌ Not quite right. You have ${result.attempts_remaining} attempt${result.attempts_remaining === 1 ? '' : 's'} remaining. Keep thinking!`, 'error');
+                                
+                                // Re-enable remaining buttons after a brief pause
                                 setTimeout(() => {
-                                    document.querySelectorAll('.statement-btn:not(.wrong)').forEach(b => b.disabled = false);
-                                }, 1500);
+                                    document.querySelectorAll('.statement-btn:not(.wrong)').forEach(b => {
+                                        b.classList.remove('disabled', 'loading');
+                                        b.disabled = false;
+                                    });
+                                    
+                                    // Clear feedback to avoid confusion
+                                    setTimeout(() => {
+                                        const feedback = document.getElementById('feedback');
+                                        if (feedback && !feedback.classList.contains('feedback-success')) {
+                                            feedback.style.display = 'none';
+                                        }
+                                    }, 3000);
+                                }, 2000);
                             } else {
-                                showFeedback('✗ Out of attempts. See the solution below.', 'error');
+                                showFeedback('❌ Out of attempts. Scroll down to see the solution.', 'error');
+                                
+                                // Show solution after delay
                                 setTimeout(() => {
-                                    window.location.reload();
+                                    const solutionEl = document.querySelector('.solution');
+                                    if (solutionEl) {
+                                        solutionEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                    }
+                                    setTimeout(() => {
+                                        window.location.reload();
+                                    }, 3000);
                                 }, 2000);
                             }
                         }
+                    } else {
+                        // API returned error
+                        clickedButton.classList.remove('loading');
+                        showFeedback('⚠️ ' + (result.error || 'An error occurred. Please try again.'), 'error');
+                        
+                        // Re-enable buttons on error
+                        setTimeout(() => {
+                            document.querySelectorAll('.statement-btn:not(.wrong)').forEach(b => {
+                                b.classList.remove('disabled', 'loading');
+                                b.disabled = false;
+                            });
+                        }, 2000);
                     }
                 } catch (error) {
                     console.error('Error:', error);
-                    showFeedback('An error occurred. Please try again.', 'error');
-                    document.querySelectorAll('.statement-btn').forEach(b => b.disabled = false);
+                    clickedButton.classList.remove('loading');
+                    showFeedback('⚠️ An error occurred. Please check your connection and try again.', 'error');
+                    
+                    // Re-enable buttons on network error
+                    setTimeout(() => {
+                        document.querySelectorAll('.statement-btn:not(.wrong)').forEach(b => {
+                            b.classList.remove('disabled', 'loading');
+                            b.disabled = false;
+                        });
+                    }, 2000);
                 }
             });
         });
@@ -635,6 +722,15 @@ if (EnvLoader::get('APP_ENV') === 'development') {
             feedback.textContent = message;
             feedback.className = 'feedback feedback-' + type;
             feedback.style.display = 'block';
+            
+            // Animate feedback appearance
+            feedback.style.opacity = '0';
+            feedback.style.transform = 'translateY(-10px)';
+            setTimeout(() => {
+                feedback.style.transition = 'all 0.3s ease-out';
+                feedback.style.opacity = '1';
+                feedback.style.transform = 'translateY(0)';
+            }, 10);
         }
 
         function copyShare() {

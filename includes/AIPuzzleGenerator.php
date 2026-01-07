@@ -135,21 +135,20 @@ class AIPuzzleGenerator {
     /**
      * Generate an image for the solution based on puzzle content
      * Public method for use in admin pages
+     * Always uses OpenAI DALL-E for image generation (regardless of text generation provider)
      */
     public function generateSolutionImage($puzzle) {
+        // Check for OpenAI API key (required for DALL-E image generation)
+        $openaiKey = EnvLoader::get('OPENAI_API_KEY');
+        if (empty($openaiKey)) {
+            throw new Exception("OpenAI API key not found. Add OPENAI_API_KEY to .env file for image generation. Note: Image generation requires OpenAI (DALL-E) even if you use Groq or Gemini for text generation.");
+        }
+        
         // Create a prompt for image generation based on the puzzle
         $imagePrompt = $this->buildImagePrompt($puzzle);
         
-        // Try to generate image using available services
-        // Priority: OpenAI DALL-E > Other services
-        
-        if ($this->provider === 'openai' || !empty(EnvLoader::get('OPENAI_API_KEY'))) {
-            return $this->generateImageWithDALLE($imagePrompt);
-        }
-        
-        // Could add other image generation services here
-        // For now, return null if no image API available
-        return null;
+        // Always use DALL-E for image generation (regardless of $this->provider which is for text)
+        return $this->generateImageWithDALLE($imagePrompt);
     }
     
     /**

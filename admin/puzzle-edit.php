@@ -352,12 +352,29 @@ if ($editMode) {
                     <h3>Solution Explanation</h3>
 
                     <?php if ($solution && !empty($solution['image_path'])): ?>
+                        <?php
+                        // Check if image file exists
+                        $imageFullPath = __DIR__ . '/../' . $solution['image_path'];
+                        $imageExists = file_exists($imageFullPath);
+                        ?>
                         <div style="margin-bottom: 20px; padding: 15px; background: #f9f9f9; border: 2px solid #ddd; border-radius: 4px;">
                             <h4 style="margin-bottom: 10px;">Current Solution Image</h4>
                             <div style="text-align: center;">
-                                <img src="../<?php echo htmlspecialchars($solution['image_path']); ?>" 
-                                     alt="Solution illustration" 
-                                     style="max-width: 100%; max-height: 400px; border: 2px solid #8b4513; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                                <?php if ($imageExists): ?>
+                                    <img src="../<?php echo htmlspecialchars($solution['image_path']); ?>" 
+                                         alt="Solution illustration" 
+                                         style="max-width: 100%; max-height: 400px; border: 2px solid #8b4513; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"
+                                         onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                    <div style="display:none; padding:15px; background:#ffebee; color:#c62828; border:2px solid #c62828; border-radius:4px;">
+                                        ⚠️ Image could not be loaded
+                                    </div>
+                                <?php else: ?>
+                                    <div style="padding:15px; background:#fff3cd; color:#856404; border:2px solid #ffc107; border-radius:4px;">
+                                        ⚠️ Image file not found at: <code><?php echo htmlspecialchars($solution['image_path']); ?></code><br>
+                                        <small>Path in database: <?php echo htmlspecialchars($solution['image_path']); ?></small><br>
+                                        <small>Expected full path: <?php echo htmlspecialchars($imageFullPath); ?></small>
+                                    </div>
+                                <?php endif; ?>
                             </div>
                             <?php if (!empty($solution['image_prompt'])): ?>
                                 <p style="margin-top: 10px; font-size: 12px; color: #666;">

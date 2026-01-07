@@ -146,11 +146,27 @@ $solution = $puzzle->getSolution($puzzleId);
                     <p style="color: #999;">No solution added yet.</p>
                 <?php else: ?>
                     <?php if (!empty($solution['image_path'])): ?>
+                        <?php
+                        // Check if image file exists
+                        $imageFullPath = __DIR__ . '/../' . $solution['image_path'];
+                        $imageExists = file_exists($imageFullPath);
+                        ?>
                         <div style="margin-bottom: 30px; padding: 20px; background: #f9f9f9; border: 2px solid #ddd; border-radius: 8px; text-align: center;">
                             <h4 style="margin-bottom: 15px; color: #333;">Solution Image</h4>
-                            <img src="../<?php echo htmlspecialchars($solution['image_path']); ?>" 
-                                 alt="Solution illustration" 
-                                 style="max-width: 100%; max-height: 500px; border: 2px solid #8b4513; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+                            <?php if ($imageExists): ?>
+                                <img src="../<?php echo htmlspecialchars($solution['image_path']); ?>" 
+                                     alt="Solution illustration" 
+                                     style="max-width: 100%; max-height: 500px; border: 2px solid #8b4513; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"
+                                     onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <div style="display:none; padding:15px; background:#ffebee; color:#c62828; border:2px solid #c62828; border-radius:4px;">
+                                    ⚠️ Image could not be loaded
+                                </div>
+                            <?php else: ?>
+                                <div style="padding:15px; background:#fff3cd; color:#856404; border:2px solid #ffc107; border-radius:4px;">
+                                    ⚠️ Image file not found at: <code><?php echo htmlspecialchars($solution['image_path']); ?></code><br>
+                                    <small>Generate a new image using the Edit page.</small>
+                                </div>
+                            <?php endif; ?>
                             <?php if (!empty($solution['image_prompt'])): ?>
                                 <p style="margin-top: 15px; font-size: 13px; color: #666; font-style: italic; text-align: left; background: #fff; padding: 10px; border-radius: 4px;">
                                     <strong>Image Prompt:</strong><br>

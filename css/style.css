@@ -590,9 +590,31 @@ body::before {
     border-left-width: 8px;
 }
 
-.statement-btn:disabled {
+.statement-btn:disabled,
+.statement-btn.disabled {
     opacity: 0.5;
-    cursor: not-allowed;
+    cursor: wait;
+    pointer-events: none;
+}
+
+.statement-btn.loading {
+    position: relative;
+    cursor: wait;
+    opacity: 0.7;
+}
+
+.statement-btn.loading::after {
+    content: '';
+    position: absolute;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+    border: 3px solid #8b4513;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
 }
 
 .statement-btn.correct {
@@ -601,14 +623,45 @@ body::before {
     border-left-color: #2e7d32;
     border-left-width: 8px;
     color: #1b5e20;
+    font-weight: 700;
+    position: relative;
+}
+
+.statement-btn.correct::before {
+    content: '✓';
+    position: absolute;
+    right: 20px;
+    font-size: 24px;
+    font-weight: bold;
+    color: #2e7d32;
 }
 
 .statement-btn.wrong {
     background: #ffebee;
     border-color: #c62828;
     border-left-color: #c62828;
-    opacity: 0.6;
+    opacity: 0.7;
     color: #5a5a5a;
+    cursor: not-allowed;
+    position: relative;
+}
+
+.statement-btn.wrong::before {
+    content: '✗';
+    position: absolute;
+    right: 20px;
+    font-size: 24px;
+    font-weight: bold;
+    color: #c62828;
+}
+
+@keyframes spin {
+    to { transform: translateY(-50%) rotate(360deg); }
+}
+
+@keyframes pulseSuccess {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.02); box-shadow: 0 0 20px rgba(46, 125, 50, 0.5); }
 }
 
 .statement-number {
@@ -681,27 +734,60 @@ body::before {
 
 .feedback {
     display: none;
-    padding: 20px;
+    padding: 20px 25px;
     font-weight: 700;
     text-align: center;
     margin-top: 25px;
+    margin-bottom: 25px;
     border: 3px solid;
     font-size: 20px;
     font-family: 'Courier New', 'Courier', monospace;
     text-transform: uppercase;
     letter-spacing: 1px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    animation: slideDown 0.3s ease-out;
+}
+
+.feedback-loading {
+    background: #e3f2fd;
+    color: #1565c0;
+    border-color: #1565c0;
+    text-transform: none;
 }
 
 .feedback-success {
     background: #e8f5e9;
     color: #2e7d32;
     border-color: #2e7d32;
+    font-size: 22px;
+    animation: slideDown 0.3s ease-out, pulseSuccess 0.6s ease-in-out 2;
 }
 
 .feedback-error {
     background: #ffebee;
     color: #c62828;
     border-color: #c62828;
+    text-transform: none;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-15px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes pulseSuccess {
+    0%, 100% {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    50% {
+        box-shadow: 0 6px 20px rgba(46, 125, 50, 0.4);
+    }
 }
 
 .completion-screen {

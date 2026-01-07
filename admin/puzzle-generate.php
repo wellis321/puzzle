@@ -217,8 +217,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_all'])) {
                             <span>Generate solution image (requires OpenAI API key for DALL-E)</span>
                         </label>
                         <small style="color: #666; display: block; margin-top: 5px;">
-                            Creates an AI-generated illustration of the mystery scene for the solution section
+                            Creates an AI-generated illustration of the mystery scene for the solution section.<br>
+                            <strong>Note:</strong> Images always use OpenAI DALL-E, even if you select Groq or Gemini for puzzle text generation.
                         </small>
+                        <?php if (empty(EnvLoader::get('OPENAI_API_KEY'))): ?>
+                            <div style="margin-top: 10px; padding: 10px; background: #fff3cd; border: 2px solid #ffc107; border-radius: 4px; color: #856404;">
+                                ⚠️ <strong>Warning:</strong> OPENAI_API_KEY not found in .env file. Image generation will fail.
+                            </div>
+                        <?php endif; ?>
                     </div>
 
                     <div class="form-actions">
@@ -257,8 +263,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_all'])) {
                             <span>Generate solution images (requires OpenAI API key for DALL-E)</span>
                         </label>
                         <small style="color: #666; display: block; margin-top: 5px;">
-                            Creates AI-generated illustrations for all three puzzles (may take longer)
+                            Creates AI-generated illustrations for all three puzzles (may take longer).<br>
+                            <strong>Note:</strong> Images always use OpenAI DALL-E, even if you select Groq or Gemini for puzzle text generation.
                         </small>
+                        <?php if (empty(EnvLoader::get('OPENAI_API_KEY'))): ?>
+                            <div style="margin-top: 10px; padding: 10px; background: #fff3cd; border: 2px solid #ffc107; border-radius: 4px; color: #856404;">
+                                ⚠️ <strong>Warning:</strong> OPENAI_API_KEY not found in .env file. Image generation will fail.
+                            </div>
+                        <?php endif; ?>
                     </div>
 
                     <div class="form-actions">
