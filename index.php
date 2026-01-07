@@ -390,23 +390,23 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                                 </div>
                             <?php endif; ?>
                             
-                            <div style="background: #fff; padding: 25px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ddd;">
-                                <p style="font-size: 16px; color: #5a4a3a; font-weight: 600; margin: 0 0 12px 0; text-transform: uppercase; letter-spacing: 1px;">Why it doesn't fit:</p>
-                                <p style="font-size: 20px; color: #333; line-height: 1.8; margin: 0;">
+                            <div style="background: #fff; padding: 25px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ddd; text-align: left;">
+                                <p style="font-size: 16px; color: #5a4a3a; font-weight: 600; margin: 0 0 12px 0; text-transform: uppercase; letter-spacing: 1px; text-align: left;">Why it doesn't fit:</p>
+                                <p style="font-size: 20px; color: #333; line-height: 1.8; margin: 0; text-align: left;">
                                     <?php echo nl2br(htmlspecialchars($solution['explanation'])); ?>
                                 </p>
                             </div>
 
                             <?php if (!empty($solution['detailed_reasoning'])): ?>
-                            <details style="margin-top: 20px; background: #fff; padding: 20px; border-radius: 8px; border: 1px solid #ddd;">
-                                <summary style="cursor: pointer; font-weight: 600; color: #5a4a3a; font-size: 16px; text-transform: uppercase; letter-spacing: 1px;">
+                            <details style="margin-top: 20px; background: #fff; padding: 20px; border-radius: 8px; border: 1px solid #ddd; text-align: left;">
+                                <summary style="cursor: pointer; font-weight: 600; color: #5a4a3a; font-size: 16px; text-transform: uppercase; letter-spacing: 1px; text-align: left;">
                                     <svg class="icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="margin-right: 8px; vertical-align: middle;">
                                         <path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z"/>
                                     </svg>
                                     Show detailed reasoning
                                 </summary>
-                                <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid #eee;">
-                                    <p style="color: #333; font-size: 18px; line-height: 1.9;"><?php echo nl2br(htmlspecialchars($solution['detailed_reasoning'])); ?></p>
+                                <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid #eee; text-align: left;">
+                                    <p style="color: #333; font-size: 18px; line-height: 1.9; text-align: left;"><?php echo nl2br(htmlspecialchars($solution['detailed_reasoning'])); ?></p>
                                 </div>
                             </details>
                             <?php endif; ?>
@@ -835,14 +835,14 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                                     </div>
                                 <?php endif; ?>
                                 
-                                <p style="font-size: 16px; color: #5a4a3a; font-weight: 600; margin: 0 0 12px 0; text-transform: uppercase; letter-spacing: 1px;">Why it doesn't fit:</p>
-                                <p style="font-size: 20px; color: #333; line-height: 1.8; margin: 0 0 20px 0;"><?php echo nl2br(htmlspecialchars($solution['explanation'])); ?></p>
+                                <p style="font-size: 16px; color: #5a4a3a; font-weight: 600; margin: 0 0 12px 0; text-transform: uppercase; letter-spacing: 1px; text-align: left;">Why it doesn't fit:</p>
+                                <p style="font-size: 20px; color: #333; line-height: 1.8; margin: 0 0 20px 0; text-align: left;"><?php echo nl2br(htmlspecialchars($solution['explanation'])); ?></p>
 
                                 <?php if (!empty($solution['detailed_reasoning'])): ?>
-                                <details style="margin-top: 20px; background: #f9f9f9; padding: 15px; border-radius: 6px; border: 1px solid #ddd;">
-                                    <summary style="cursor: pointer; font-weight: 600; color: #5a4a3a; font-size: 16px; text-transform: uppercase; letter-spacing: 1px;">Show detailed reasoning</summary>
-                                    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd;">
-                                        <p style="font-size: 18px; color: #333; line-height: 1.9;"><?php echo nl2br(htmlspecialchars($solution['detailed_reasoning'])); ?></p>
+                                <details style="margin-top: 20px; background: #f9f9f9; padding: 15px; border-radius: 6px; border: 1px solid #ddd; text-align: left;">
+                                    <summary style="cursor: pointer; font-weight: 600; color: #5a4a3a; font-size: 16px; text-transform: uppercase; letter-spacing: 1px; text-align: left;">Show detailed reasoning</summary>
+                                    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd; text-align: left;">
+                                        <p style="font-size: 18px; color: #333; line-height: 1.9; text-align: left;"><?php echo nl2br(htmlspecialchars($solution['detailed_reasoning'])); ?></p>
                                     </div>
                                 </details>
                                 <?php endif; ?>
