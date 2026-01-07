@@ -488,14 +488,14 @@ CRITICAL: Exactly ONE statement must have \"is_correct\": true - place it at a R
     }
 
     private function callOpenAICompatible($prompt) {
-        // Groq models: mixtral-8x7b-32768 was decommissioned
-        // Try multiple current models
+        // Groq models: Updated list of currently available models
+        // Removed deprecated: mixtral-8x7b-32768, gemma2-9b-it
         if ($this->provider === 'groq') {
             $groqModels = [
-                'llama-3.1-70b-versatile',
                 'llama-3.3-70b-versatile',
+                'llama-3.1-70b-versatile',
                 'llama-3.1-8b-instant',
-                'gemma2-9b-it'
+                'llama-3.2-3b-versatile',
             ];
             
             // Try each model until one works
@@ -653,11 +653,31 @@ CRITICAL: Exactly ONE statement must have \"is_correct\": true - place it at a R
         } else {
             throw new Exception("Could not extract JSON from AI response");
         }
+        
+        // Clean control characters that can cause JSON parsing errors
+        // Remove control characters except newlines, tabs, and carriage returns
+        $jsonStr = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $jsonStr);
+        
+        // Also try to fix common encoding issues
+        // Remove BOM if present
+        if (substr($jsonStr, 0, 3) === "\xEF\xBB\xBF") {
+            $jsonStr = substr($jsonStr, 3);
+        }
+        
+        // Decode any HTML entities that might have been encoded
+        $jsonStr = html_entity_decode($jsonStr, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
         $puzzle = json_decode($jsonStr, true);
 
         if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new Exception("Invalid JSON from AI: " . json_last_error_msg());
+            // Try one more time with more aggressive cleaning
+            $jsonStr = mb_convert_encoding($jsonStr, 'UTF-8', 'UTF-8');
+            $jsonStr = preg_replace('/[^\x20-\x7E\x0A\x0D\x09]/', '', $jsonStr);
+            $puzzle = json_decode($jsonStr, true);
+            
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                throw new Exception("Invalid JSON from AI: " . json_last_error_msg() . " (after cleaning)");
+            }
         }
 
         // Validate required fields
