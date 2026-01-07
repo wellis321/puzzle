@@ -811,8 +811,190 @@ CRITICAL: Exactly ONE statement must have \"is_correct\": true - place it at a R
                 error_log("Warning: Enhanced solution explanation to clarify contradiction.");
             }
         }
+        
+        // DEEP LOGICAL VALIDATION: Verify the puzzle actually makes sense
+        $validationResult = $this->validatePuzzleLogic($puzzle);
+        if (!$validationResult['valid']) {
+            // Log validation warnings/issues
+            error_log("Puzzle validation warnings: " . implode("; ", $validationResult['warnings']));
+            // Store validation results in puzzle for external systems (like n8n) to check
+            $puzzle['validation'] = $validationResult;
+        } else {
+            $puzzle['validation'] = ['valid' => true, 'warnings' => []];
+        }
 
         return $puzzle;
+    }
+    
+    /**
+     * Deep logical validation: Verify puzzle makes sense
+     * Checks if the correct statement actually contradicts the summary/report
+     */
+    private function validatePuzzleLogic($puzzle) {
+        $warnings = [];
+        $isValid = true;
+        
+        // Get the correct statement
+        $correctStatement = null;
+        foreach ($puzzle['statements'] as $stmt) {
+            if ($stmt['is_correct']) {
+                $correctStatement = $stmt;
+                break;
+            }
+        }
+        
+        if (!$correctStatement) {
+            return ['valid' => false, 'warnings' => ['No correct statement found']];
+        }
+        
+        // Combine summary and report text for analysis
+        $allText = strtolower($puzzle['case_summary'] . ' ' . $puzzle['report_text']);
+        $correctText = strtolower($correctStatement['text']);
+        
+        // Extract key facts from summary/report (times, numbers, locations, dates)
+        $facts = $this->extractFacts($allText);
+        
+        // Extract facts from correct statement
+        $statementFacts = $this->extractFacts($correctText);
+        
+        // Check for contradictions
+        $contradictionsFound = [];
+        
+        // Time contradictions
+        if (!empty($facts['times']) && !empty($statementFacts['times'])) {
+            foreach ($facts['times'] as $reportTime) {
+                foreach ($statementFacts['times'] as $stmtTime) {
+                    if ($reportTime !== $stmtTime) {
+                        $contradictionsFound[] = "Time mismatch: report says '{$reportTime}' but statement says '{$stmtTime}'";
+                    }
+                }
+            }
+        }
+        
+        // Number contradictions (counts, quantities)
+        if (!empty($facts['numbers']) && !empty($statementFacts['numbers'])) {
+            foreach ($facts['numbers'] as $reportNum => $reportContext) {
+                foreach ($statementFacts['numbers'] as $stmtNum => $stmtContext) {
+                    // Check if same type of number (people, items, etc.)
+                    if (stripos($reportContext, 'people') !== false && stripos($stmtContext, 'people') !== false) {
+                        if ($reportNum !== $stmtNum) {
+                            $contradictionsFound[] = "Count mismatch: report mentions {$reportNum} people but statement says {$stmtNum}";
+                        }
+                    } elseif (stripos($reportContext, 'minute') !== false && stripos($stmtContext, 'minute') !== false) {
+                        if ($reportNum !== $stmtNum) {
+                            $contradictionsFound[] = "Duration mismatch: report says {$reportNum} minutes but statement says {$stmtNum}";
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Location contradictions (basic check)
+        $locationKeywords = ['entrance', 'exit', 'door', 'room', 'building', 'north', 'south', 'east', 'west', 'left', 'right'];
+        foreach ($locationKeywords as $keyword) {
+            if (stripos($allText, $keyword) !== false && stripos($correctText, $keyword) !== false) {
+                // Check if they're different
+                preg_match_all('/\b' . preg_quote($keyword, '/') . '\s+(\w+)/i', $allText, $reportMatches);
+                preg_match_all('/\b' . preg_quote($keyword, '/') . '\s+(\w+)/i', $correctText, $stmtMatches);
+                if (!empty($reportMatches[1]) && !empty($stmtMatches[1])) {
+                    $reportLocation = strtolower(implode(' ', $reportMatches[1]));
+                    $stmtLocation = strtolower(implode(' ', $stmtMatches[1]));
+                    if ($reportLocation !== $stmtLocation) {
+                        $contradictionsFound[] = "Location mismatch involving '{$keyword}'";
+                    }
+                }
+            }
+        }
+        
+        // Check if solution explanation references the contradiction
+        $solutionText = strtolower($puzzle['solution']['explanation'] . ' ' . ($puzzle['solution']['detailed_reasoning'] ?? ''));
+        $referencesSpecificFact = false;
+        foreach ($facts['times'] as $time) {
+            if (stripos($solutionText, $time) !== false) {
+                $referencesSpecificFact = true;
+                break;
+            }
+        }
+        if (!$referencesSpecificFact && !empty($facts['numbers'])) {
+            foreach (array_keys($facts['numbers']) as $num) {
+                if (stripos($solutionText, (string)$num) !== false) {
+                    $referencesSpecificFact = true;
+                    break;
+                }
+            }
+        }
+        
+        // Build validation result
+        if (empty($contradictionsFound)) {
+            $warnings[] = "No clear factual contradiction detected. The puzzle may rely on subjective interpretation rather than factual mismatch.";
+            // Don't mark as invalid - sometimes contradictions are subtle
+        } else {
+            // Good - found contradictions
+            $puzzle['detected_contradictions'] = $contradictionsFound;
+        }
+        
+        if (!$referencesSpecificFact && empty($contradictionsFound)) {
+            $warnings[] = "Solution explanation does not reference specific facts from the report (times, numbers, locations).";
+        }
+        
+        // Check if other statements are consistent
+        $otherStatementsConsistent = true;
+        foreach ($puzzle['statements'] as $stmt) {
+            if (!$stmt['is_correct']) {
+                $stmtFacts = $this->extractFacts(strtolower($stmt['text']));
+                // Basic check: if statement has times, they should match report times (or at least not contradict)
+                if (!empty($facts['times']) && !empty($stmtFacts['times'])) {
+                    foreach ($facts['times'] as $reportTime) {
+                        foreach ($stmtFacts['times'] as $stmtTime) {
+                            // Other statements should be consistent with report
+                            if ($reportTime !== $stmtTime) {
+                                $warnings[] = "Non-correct statement may contradict report time: '{$stmtTime}' vs '{$reportTime}'";
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        return [
+            'valid' => empty($warnings) || count($warnings) < 2, // Allow 1 warning
+            'warnings' => $warnings,
+            'contradictions_detected' => $contradictionsFound,
+            'references_specific_facts' => $referencesSpecificFact
+        ];
+    }
+    
+    /**
+     * Extract facts (times, numbers, locations) from text
+     */
+    private function extractFacts($text) {
+        $facts = [
+            'times' => [],
+            'numbers' => [],
+            'locations' => []
+        ];
+        
+        // Extract times (HH:MM format or "X o'clock", "X PM", etc.)
+        preg_match_all('/\b(\d{1,2}):(\d{2})\b/i', $text, $timeMatches);
+        foreach ($timeMatches[0] as $time) {
+            $facts['times'][] = $time;
+        }
+        
+        // Extract numbers with context (for quantity contradictions)
+        preg_match_all('/\b(\d+)\s+(\w+(?:\s+\w+){0,2})\b/i', $text, $numberMatches, PREG_SET_ORDER);
+        foreach ($numberMatches as $match) {
+            $num = $match[1];
+            $context = $match[2];
+            $facts['numbers'][$num] = $context;
+        }
+        
+        // Extract location keywords
+        preg_match_all('/\b(north|south|east|west|left|right|entrance|exit)\s+(\w+)?/i', $text, $locationMatches, PREG_SET_ORDER);
+        foreach ($locationMatches as $match) {
+            $facts['locations'][] = trim($match[0]);
+        }
+        
+        return $facts;
     }
 }
 
