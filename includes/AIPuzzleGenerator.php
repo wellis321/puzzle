@@ -167,7 +167,37 @@ Make sure exactly ONE statement has \"is_correct\": true. Make it challenging bu
     }
 
     private function callOpenAICompatible($prompt) {
-        $model = ($this->provider === 'groq') ? 'mixtral-8x7b-32768' : 'gpt-3.5-turbo';
+        // Groq models: mixtral-8x7b-32768 was decommissioned
+        // Try multiple current models
+        if ($this->provider === 'groq') {
+            $groqModels = [
+                'llama-3.1-70b-versatile',
+                'llama-3.3-70b-versatile',
+                'llama-3.1-8b-instant',
+                'gemma2-9b-it'
+            ];
+            
+            // Try each model until one works
+            foreach ($groqModels as $tryModel) {
+                try {
+                    return $this->callGroqWithModel($prompt, $tryModel);
+                } catch (Exception $e) {
+                    // Try next model
+                    continue;
+                }
+            }
+            throw new Exception("All Groq models failed. Last error: " . (isset($e) ? $e->getMessage() : "Unknown error"));
+        }
+        
+        // OpenAI
+        $model = 'gpt-3.5-turbo';
+        return $this->callGroqWithModel($prompt, $model, 'openai');
+    }
+    
+    private function callGroqWithModel($prompt, $model, $providerType = 'groq') {
+        $url = ($providerType === 'groq') 
+            ? 'https://api.groq.com/openai/v1/chat/completions'
+            : 'https://api.openai.com/v1/chat/completions';
         
         $data = [
             'model' => $model,
@@ -183,7 +213,7 @@ Make sure exactly ONE statement has \"is_correct\": true. Make it challenging bu
             'Authorization: Bearer ' . $this->apiKey
         ];
 
-        $ch = curl_init($this->baseUrl);
+        $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
