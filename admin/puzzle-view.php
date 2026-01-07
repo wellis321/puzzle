@@ -145,6 +145,21 @@ $solution = $puzzle->getSolution($puzzleId);
                 <?php if (!$solution): ?>
                     <p style="color: #999;">No solution added yet.</p>
                 <?php else: ?>
+                    <?php if (!empty($solution['image_path'])): ?>
+                        <div style="margin-bottom: 30px; padding: 20px; background: #f9f9f9; border: 2px solid #ddd; border-radius: 8px; text-align: center;">
+                            <h4 style="margin-bottom: 15px; color: #333;">Solution Image</h4>
+                            <img src="../<?php echo htmlspecialchars($solution['image_path']); ?>" 
+                                 alt="Solution illustration" 
+                                 style="max-width: 100%; max-height: 500px; border: 2px solid #8b4513; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+                            <?php if (!empty($solution['image_prompt'])): ?>
+                                <p style="margin-top: 15px; font-size: 13px; color: #666; font-style: italic; text-align: left; background: #fff; padding: 10px; border-radius: 4px;">
+                                    <strong>Image Prompt:</strong><br>
+                                    <?php echo htmlspecialchars($solution['image_prompt']); ?>
+                                </p>
+                            <?php endif; ?>
+                        </div>
+                    <?php endif; ?>
+                    
                     <div style="margin-bottom: 20px;">
                         <h4 style="margin-bottom: 10px; color: #333;">Brief Explanation:</h4>
                         <div style="background: #d4edda; padding: 16px; border-radius: 8px; border-left: 4px solid #28a745; line-height: 1.6;">
