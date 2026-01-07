@@ -213,7 +213,16 @@ if (EnvLoader::get('APP_ENV') === 'development') {
         <main class="game-container" data-case-number="<?php echo $puzzleId; ?>">
             <?php if ($completion): ?>
                 <!-- Completed State -->
-                <div class="completion-screen <?php echo $completion['solved'] ? 'completion-solved' : 'completion-failed'; ?>">
+                <div id="completion-top" class="completion-screen <?php echo $completion['solved'] ? 'completion-solved' : 'completion-failed'; ?>">
+                    <div class="case-file-header" style="text-align: left; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid rgba(139, 69, 19, 0.2);">
+                        <div style="font-size: 14px; color: #666; text-transform: uppercase; letter-spacing: 2px; font-family: 'Courier New', 'Courier', monospace; margin-bottom: 5px;">
+                            Case File #<?php echo $puzzleId; ?>
+                        </div>
+                        <div style="font-size: 16px; color: #8b4513; font-weight: 600;">
+                            <?php echo htmlspecialchars($todaysPuzzle['title']); ?>
+                        </div>
+                    </div>
+                    
                     <?php if ($completion['solved']): ?>
                         <h2 style="color: #2e7d32;">✅ Case Solved!</h2>
                     <?php else: ?>
@@ -291,6 +300,97 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                             <?php endif; ?>
                         </div>
                     <?php endif; ?>
+                    
+                    <!-- Case Review Section -->
+                    <div class="case-review-section" style="margin-top: 40px; margin-bottom: 30px;">
+                        <button id="toggle-review-btn" class="btn" style="background: #8b4513; color: white; padding: 12px 25px; font-size: 16px; font-weight: 600;">
+                            📋 Review Case Details
+                        </button>
+                        <div id="case-review-content" style="display: none; margin-top: 25px; padding: 25px; background: #f8f9fa; border: 2px solid #8b4513; border-radius: 8px;">
+                            <div class="review-section" style="margin-bottom: 30px;">
+                                <h3 style="color: #8b4513; font-size: 20px; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 2px; font-family: 'Courier New', 'Courier', monospace;">Case Summary</h3>
+                                <div class="case-summary" style="background: #fff; padding: 20px; border-left: 4px solid #8b4513;">
+                                    <p><?php echo nl2br(htmlspecialchars($todaysPuzzle['case_summary'])); ?></p>
+                                </div>
+                            </div>
+                            
+                            <?php
+                            // Parse and display report sections
+                            $reportText = $todaysPuzzle['report_text'];
+                            $rawSections = preg_split('/\n\n+/', $reportText);
+                            $sections = [];
+                            
+                            foreach ($rawSections as $rawSection):
+                                $trimmed = trim($rawSection);
+                                if (empty($trimmed)) continue;
+                                
+                                // Check for title (format: **Title**: or **Title**)
+                                if (preg_match('/^\*\*(.*?)\*\*\s*:?\s*(.*)$/s', $trimmed, $titleMatch)) {
+                                    $title = trim($titleMatch[1]);
+                                    $content = preg_replace('/^\*\*(.*?)\*\*\s*:?\s*/', '', $trimmed);
+                                    $content = trim($content);
+                                    $content = preg_replace('/^:\s*/', '', $content);
+                                } else {
+                                    $title = '';
+                                    $content = $trimmed;
+                                    $content = preg_replace('/^:\s*/', '', $content);
+                                }
+                                
+                                $content = trim($content);
+                                $sections[] = ['title' => $title, 'content' => $content];
+                            endforeach;
+                            
+                            if (!empty($sections)):
+                            ?>
+                            <div class="review-section" style="margin-bottom: 30px;">
+                                <h3 style="color: #8b4513; font-size: 20px; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 2px; font-family: 'Courier New', 'Courier', monospace;">Full Report</h3>
+                                <?php foreach ($sections as $section): ?>
+                                    <div style="background: #fff; padding: 20px; margin-bottom: 15px; border-left: 4px solid #8b4513;">
+                                        <?php if ($section['title']): ?>
+                                            <h4 style="color: #8b4513; font-size: 18px; margin-bottom: 10px; font-weight: 600;">
+                                                <?php echo htmlspecialchars($section['title']); ?>
+                                            </h4>
+                                        <?php endif; ?>
+                                        <div style="line-height: 1.8;">
+                                            <?php 
+                                            $formattedContent = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $section['content']);
+                                            echo nl2br(htmlspecialchars($formattedContent)); 
+                                            ?>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                            <?php endif; ?>
+                            
+                            <div class="review-section">
+                                <h3 style="color: #8b4513; font-size: 20px; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 2px; font-family: 'Courier New', 'Courier', monospace;">All Statements</h3>
+                                <div style="background: #fff; padding: 20px; border-left: 4px solid #8b4513;">
+                                    <?php 
+                                    $attemptedStatements = [];
+                                    foreach ($attempts as $attempt) {
+                                        $attemptedStatements[$attempt['statement_id']] = $attempt['is_correct'];
+                                    }
+                                    
+                                    foreach ($statements as $stmt): 
+                                        $wasAttempted = isset($attemptedStatements[$stmt['id']]);
+                                        $wasCorrect = $wasAttempted && $attemptedStatements[$stmt['id']];
+                                        $wasWrong = $wasAttempted && !$attemptedStatements[$stmt['id']];
+                                        $isCorrectAnswer = ($stmt['is_correct_answer'] == 1);
+                                    ?>
+                                        <div style="padding: 15px; margin-bottom: 10px; border: 2px solid <?php echo $wasCorrect ? '#2e7d32' : ($wasWrong ? '#c62828' : ($isCorrectAnswer && $completion ? '#2e7d32' : '#ddd')); ?>; background: <?php echo $wasCorrect ? '#e8f5e9' : ($wasWrong ? '#ffebee' : ($isCorrectAnswer && $completion ? '#e8f5e9' : '#fff')); ?>; border-radius: 4px;">
+                                            <span style="font-weight: 700; color: #8b4513; margin-right: 10px;"><?php echo $stmt['statement_order']; ?>.</span>
+                                            <span><?php echo htmlspecialchars($stmt['statement_text']); ?></span>
+                                            <?php if ($wasCorrect || ($isCorrectAnswer && $completion)): ?>
+                                                <span style="float: right; color: #2e7d32; font-weight: 700;">✓ Correct</span>
+                                            <?php elseif ($wasWrong): ?>
+                                                <span style="float: right; color: #c62828; font-weight: 700;">✗ Wrong</span>
+                                            <?php endif; ?>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
                     <div class="share-section">
                         <h3>Share Your Result</h3>
@@ -762,6 +862,39 @@ if (EnvLoader::get('APP_ENV') === 'development') {
             }
         });
 
+        // Function to toggle case review section
+        const toggleReviewBtn = document.getElementById('toggle-review-btn');
+        if (toggleReviewBtn) {
+            toggleReviewBtn.addEventListener('click', function() {
+                const reviewContent = document.getElementById('case-review-content');
+                if (reviewContent) {
+                    if (reviewContent.style.display === 'none' || !reviewContent.style.display) {
+                        reviewContent.style.display = 'block';
+                        this.textContent = '📋 Hide Case Details';
+                    } else {
+                        reviewContent.style.display = 'none';
+                        this.textContent = '📋 Review Case Details';
+                    }
+                }
+            });
+        }
+        
+        // Scroll to top of completion screen when page loads with completion
+        <?php if ($completion): ?>
+        window.addEventListener('load', function() {
+            // Check if we're coming from a redirect (URL hash or completion just happened)
+            const completionTop = document.getElementById('completion-top');
+            if (completionTop) {
+                // Small delay to ensure page is fully rendered
+                setTimeout(() => {
+                    completionTop.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    // Also scroll window to top to account for header
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }, 100);
+            }
+        });
+        <?php endif; ?>
+
         // Handle statement clicks
         document.querySelectorAll('.statement-btn').forEach(btn => {
             btn.addEventListener('click', async function() {
@@ -826,7 +959,7 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                             
                             // Smooth transition to completion screen
                             setTimeout(() => {
-                                window.location.reload();
+                                window.location.href = window.location.pathname + (window.location.search || '?puzzle_id=' + puzzleId) + '#completion-top';
                             }, 2500);
                         } else {
                             // Wrong answer
@@ -851,9 +984,9 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                                     }, 3000);
                                 }, 2000);
                             } else {
-                                // Out of attempts - reload to show the new prompt
+                                // Out of attempts - reload and scroll to top
                                 setTimeout(() => {
-                                    window.location.reload();
+                                    window.location.href = window.location.pathname + (window.location.search || '?puzzle_id=<?php echo $puzzleId; ?>') + '#completion-top';
                                 }, 1500);
                             }
                         }
