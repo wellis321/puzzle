@@ -5,22 +5,44 @@
 class Game {
     private $db;
     private $sessionId;
+    private $userId;
     private $maxAttempts = 3;
 
-    public function __construct($sessionId) {
+    public function __construct($sessionId, $userId = null) {
         $this->db = Database::getInstance()->getConnection();
         $this->sessionId = $sessionId;
+        $this->userId = $userId;
+    }
+    
+    /**
+     * Get identifier for queries (user_id if logged in, session_id if anonymous)
+     */
+    private function getIdentifier() {
+        return $this->userId ?? $this->sessionId;
+    }
+    
+    /**
+     * Build WHERE clause for user identification
+     */
+    private function getUserWhereClause() {
+        if ($this->userId) {
+            return "user_id = ?";
+        } else {
+            return "session_id = ?";
+        }
     }
 
     /**
      * Check if user has already completed today's puzzle
      */
     public function hasCompletedPuzzle($puzzleId) {
+        $whereClause = $this->getUserWhereClause();
+        $identifier = $this->getIdentifier();
         $stmt = $this->db->prepare("
             SELECT * FROM completions
-            WHERE session_id = ? AND puzzle_id = ?
+            WHERE {$whereClause} AND puzzle_id = ?
         ");
-        $stmt->execute([$this->sessionId, $puzzleId]);
+        $stmt->execute([$identifier, $puzzleId]);
         return $stmt->fetch() !== false;
     }
 
@@ -28,12 +50,14 @@ class Game {
      * Get user's attempts for a puzzle
      */
     public function getAttempts($puzzleId) {
+        $whereClause = $this->getUserWhereClause();
+        $identifier = $this->getIdentifier();
         $stmt = $this->db->prepare("
             SELECT * FROM attempts
-            WHERE session_id = ? AND puzzle_id = ?
+            WHERE {$whereClause} AND puzzle_id = ?
             ORDER BY attempt_number ASC
         ");
-        $stmt->execute([$this->sessionId, $puzzleId]);
+        $stmt->execute([$identifier, $puzzleId]);
         return $stmt->fetchAll();
     }
 
@@ -41,11 +65,13 @@ class Game {
      * Get number of attempts used
      */
     public function getAttemptCount($puzzleId) {
+        $whereClause = $this->getUserWhereClause();
+        $identifier = $this->getIdentifier();
         $stmt = $this->db->prepare("
             SELECT COUNT(*) as count FROM attempts
-            WHERE session_id = ? AND puzzle_id = ?
+            WHERE {$whereClause} AND puzzle_id = ?
         ");
-        $stmt->execute([$this->sessionId, $puzzleId]);
+        $stmt->execute([$identifier, $puzzleId]);
         $result = $stmt->fetch();
         return $result['count'];
     }
@@ -60,11 +86,20 @@ class Game {
             return ['success' => false, 'error' => 'Maximum attempts exceeded'];
         }
 
-        $stmt = $this->db->prepare("
-            INSERT INTO attempts (session_id, puzzle_id, statement_id, attempt_number, is_correct)
-            VALUES (?, ?, ?, ?, ?)
-        ");
-        $stmt->execute([$this->sessionId, $puzzleId, $statementId, $attemptNumber, $isCorrect]);
+        // Insert attempt with user_id if available, otherwise session_id
+        if ($this->userId) {
+            $stmt = $this->db->prepare("
+                INSERT INTO attempts (user_id, puzzle_id, statement_id, attempt_number, is_correct)
+                VALUES (?, ?, ?, ?, ?)
+            ");
+            $stmt->execute([$this->userId, $puzzleId, $statementId, $attemptNumber, $isCorrect]);
+        } else {
+            $stmt = $this->db->prepare("
+                INSERT INTO attempts (session_id, puzzle_id, statement_id, attempt_number, is_correct)
+                VALUES (?, ?, ?, ?, ?)
+            ");
+            $stmt->execute([$this->sessionId, $puzzleId, $statementId, $attemptNumber, $isCorrect]);
+        }
 
         // If correct or out of attempts, mark as complete
         if ($isCorrect || $attemptNumber >= $this->maxAttempts) {
@@ -104,15 +139,42 @@ class Game {
             }
         }
 
-        $stmt = $this->db->prepare("
-            INSERT INTO completions (session_id, puzzle_id, attempts_used, solved, score)
-            VALUES (?, ?, ?, ?, ?)
-            ON DUPLICATE KEY UPDATE
-                attempts_used = VALUES(attempts_used),
-                solved = VALUES(solved),
-                score = VALUES(score)
-        ");
-        $stmt->execute([$this->sessionId, $puzzleId, $attemptsUsed, $solved, $score]);
+        // Check if completion already exists
+        $existing = $this->getCompletion($puzzleId);
+        
+        if ($existing) {
+            // Update existing completion
+            if ($this->userId) {
+                $stmt = $this->db->prepare("
+                    UPDATE completions 
+                    SET attempts_used = ?, solved = ?, score = ?
+                    WHERE user_id = ? AND puzzle_id = ?
+                ");
+                $stmt->execute([$attemptsUsed, $solved, $score, $this->userId, $puzzleId]);
+            } else {
+                $stmt = $this->db->prepare("
+                    UPDATE completions 
+                    SET attempts_used = ?, solved = ?, score = ?
+                    WHERE session_id = ? AND puzzle_id = ? AND (user_id IS NULL)
+                ");
+                $stmt->execute([$attemptsUsed, $solved, $score, $this->sessionId, $puzzleId]);
+            }
+        } else {
+            // Insert new completion
+            if ($this->userId) {
+                $stmt = $this->db->prepare("
+                    INSERT INTO completions (user_id, puzzle_id, attempts_used, solved, score)
+                    VALUES (?, ?, ?, ?, ?)
+                ");
+                $stmt->execute([$this->userId, $puzzleId, $attemptsUsed, $solved, $score]);
+            } else {
+                $stmt = $this->db->prepare("
+                    INSERT INTO completions (session_id, puzzle_id, attempts_used, solved, score)
+                    VALUES (?, ?, ?, ?, ?)
+                ");
+                $stmt->execute([$this->sessionId, $puzzleId, $attemptsUsed, $solved, $score]);
+            }
+        }
 
         // Update puzzle stats
         $this->updatePuzzleStats($puzzleId);
@@ -149,11 +211,13 @@ class Game {
      * Get user's completion record for a puzzle
      */
     public function getCompletion($puzzleId) {
+        $whereClause = $this->getUserWhereClause();
+        $identifier = $this->getIdentifier();
         $stmt = $this->db->prepare("
             SELECT * FROM completions
-            WHERE session_id = ? AND puzzle_id = ?
+            WHERE {$whereClause} AND puzzle_id = ?
         ");
-        $stmt->execute([$this->sessionId, $puzzleId]);
+        $stmt->execute([$identifier, $puzzleId]);
         return $stmt->fetch();
     }
 
@@ -231,28 +295,42 @@ class Game {
             error_log("Warning: user_sessions table may not exist: " . $e->getMessage());
         }
         
+        // Check by user_id first, then session_id
+        $identifier = $this->getIdentifier();
+        $whereClause = $this->getUserWhereClause();
+        
         try {
-            $stmt = $this->db->prepare("SELECT * FROM user_ranks WHERE session_id = ?");
-            $stmt->execute([$this->sessionId]);
+            $stmt = $this->db->prepare("SELECT * FROM user_ranks WHERE {$whereClause}");
+            $stmt->execute([$identifier]);
             $rank = $stmt->fetch();
             
             if (!$rank) {
                 // Create initial rank record
-                // Use INSERT IGNORE to avoid foreign key issues if session doesn't exist yet
-                $stmt = $this->db->prepare("
-                    INSERT IGNORE INTO user_ranks (session_id, rank_name, rank_level)
-                    VALUES (?, 'Novice Detective', 1)
-                ");
-                try {
+                if ($this->userId) {
+                    $stmt = $this->db->prepare("
+                        INSERT IGNORE INTO user_ranks (user_id, rank_name, rank_level)
+                        VALUES (?, 'Novice Detective', 1)
+                    ");
+                    try {
+                        $stmt->execute([$this->userId]);
+                    } catch (PDOException $e) {
+                        // If insert fails, just continue
+                    }
+                    $stmt = $this->db->prepare("SELECT * FROM user_ranks WHERE user_id = ?");
+                    $stmt->execute([$this->userId]);
+                } else {
+                    $stmt = $this->db->prepare("
+                        INSERT IGNORE INTO user_ranks (session_id, rank_name, rank_level)
+                        VALUES (?, 'Novice Detective', 1)
+                    ");
+                    try {
+                        $stmt->execute([$this->sessionId]);
+                    } catch (PDOException $e) {
+                        // If insert fails, just continue
+                    }
+                    $stmt = $this->db->prepare("SELECT * FROM user_ranks WHERE session_id = ?");
                     $stmt->execute([$this->sessionId]);
-                } catch (PDOException $e) {
-                    // If insert fails (e.g., foreign key constraint), just continue
-                    // The rank will be created on next update
                 }
-                
-                // Fetch the newly created record (or null if insert failed)
-                $stmt = $this->db->prepare("SELECT * FROM user_ranks WHERE session_id = ?");
-                $stmt->execute([$this->sessionId]);
                 $rank = $stmt->fetch();
             }
             
@@ -275,16 +353,18 @@ class Game {
             return;
         }
         
-        // Get all completions for this user
+        // Get all completions for this user (by user_id or session_id)
+        $whereClause = $this->getUserWhereClause();
+        $identifier = $this->getIdentifier();
         $stmt = $this->db->prepare("
             SELECT 
                 c.*,
                 p.difficulty
             FROM completions c
             JOIN puzzles p ON c.puzzle_id = p.id
-            WHERE c.session_id = ?
+            WHERE c.{$whereClause}
         ");
-        $stmt->execute([$this->sessionId]);
+        $stmt->execute([$identifier]);
         $completions = $stmt->fetchAll();
 
         // Calculate statistics
@@ -331,32 +411,59 @@ class Game {
         $currentBestStreak = $currentRank ? $currentRank['best_streak'] : 0;
         $newBestStreak = max($currentBestStreak, $streak['current']);
         
-        // Update or insert rank record
-        $stmt = $this->db->prepare("
-            INSERT INTO user_ranks (
-                session_id, rank_name, rank_level,
-                total_completions, easy_completions, medium_completions, hard_completions,
-                perfect_scores, total_attempts, solved_count,
-                current_streak, best_streak, last_activity_date
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE())
-            ON DUPLICATE KEY UPDATE
-                rank_name = VALUES(rank_name),
-                rank_level = VALUES(rank_level),
-                total_completions = VALUES(total_completions),
-                easy_completions = VALUES(easy_completions),
-                medium_completions = VALUES(medium_completions),
-                hard_completions = VALUES(hard_completions),
-                perfect_scores = VALUES(perfect_scores),
-                total_attempts = VALUES(total_attempts),
-                solved_count = VALUES(solved_count),
-                current_streak = VALUES(current_streak),
-                best_streak = VALUES(best_streak),
-                last_activity_date = CURDATE(),
-                updated_at = CURRENT_TIMESTAMP
-        ");
+        // Update or insert rank record (using user_id if available, otherwise session_id)
+        $identifier = $this->getIdentifier();
+        
+        if ($this->userId) {
+            $stmt = $this->db->prepare("
+                INSERT INTO user_ranks (
+                    user_id, rank_name, rank_level,
+                    total_completions, easy_completions, medium_completions, hard_completions,
+                    perfect_scores, total_attempts, solved_count,
+                    current_streak, best_streak, last_activity_date
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE())
+                ON DUPLICATE KEY UPDATE
+                    rank_name = VALUES(rank_name),
+                    rank_level = VALUES(rank_level),
+                    total_completions = VALUES(total_completions),
+                    easy_completions = VALUES(easy_completions),
+                    medium_completions = VALUES(medium_completions),
+                    hard_completions = VALUES(hard_completions),
+                    perfect_scores = VALUES(perfect_scores),
+                    total_attempts = VALUES(total_attempts),
+                    solved_count = VALUES(solved_count),
+                    current_streak = VALUES(current_streak),
+                    best_streak = VALUES(best_streak),
+                    last_activity_date = CURDATE(),
+                    updated_at = CURRENT_TIMESTAMP
+            ");
+        } else {
+            $stmt = $this->db->prepare("
+                INSERT INTO user_ranks (
+                    session_id, rank_name, rank_level,
+                    total_completions, easy_completions, medium_completions, hard_completions,
+                    perfect_scores, total_attempts, solved_count,
+                    current_streak, best_streak, last_activity_date
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE())
+                ON DUPLICATE KEY UPDATE
+                    rank_name = VALUES(rank_name),
+                    rank_level = VALUES(rank_level),
+                    total_completions = VALUES(total_completions),
+                    easy_completions = VALUES(easy_completions),
+                    medium_completions = VALUES(medium_completions),
+                    hard_completions = VALUES(hard_completions),
+                    perfect_scores = VALUES(perfect_scores),
+                    total_attempts = VALUES(total_attempts),
+                    solved_count = VALUES(solved_count),
+                    current_streak = VALUES(current_streak),
+                    best_streak = VALUES(best_streak),
+                    last_activity_date = CURDATE(),
+                    updated_at = CURRENT_TIMESTAMP
+            ");
+        }
         
         $stmt->execute([
-            $this->sessionId,
+            $identifier,
             $rankData['name'],
             $rankData['level'],
             $stats['total_completions'],
@@ -376,13 +483,15 @@ class Game {
      */
     private function calculateStreak() {
         // Get distinct dates with SOLVED completions only, ordered by date descending
+        $whereClause = $this->getUserWhereClause();
+        $identifier = $this->getIdentifier();
         $stmt = $this->db->prepare("
             SELECT DISTINCT DATE(c.completed_at) as completion_date
             FROM completions c
-            WHERE c.session_id = ? AND c.solved = 1
+            WHERE c.{$whereClause} AND c.solved = 1
             ORDER BY completion_date DESC
         ");
-        $stmt->execute([$this->sessionId]);
+        $stmt->execute([$identifier]);
         $dates = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
         if (empty($dates)) {

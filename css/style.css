@@ -1639,3 +1639,62 @@ body::before {
     background: rgba(212, 175, 55, 0.3);
     border-color: #f0c14b;
 }
+
+/* Ad Container Styles */
+.ad-container,
+.ad-wrapper {
+    margin: 20px 0;
+    text-align: center;
+    min-height: 100px;
+    background: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 15px;
+}
+
+.ad-container.banner,
+.ad-wrapper.ad-banner {
+    margin: 10px 0;
+    min-height: 90px;
+}
+
+.ad-container.inline,
+.ad-wrapper.ad-inline {
+    margin: 25px 0;
+}
+
+.ad-container.sidebar,
+.ad-wrapper.ad-sidebar {
+    margin: 20px 0;
+}
+
+.ad-container.mobile,
+.ad-wrapper.ad-mobile {
+    margin: 15px 0;
+}
+
+.header-ad-container {
+    margin: 10px 0;
+    padding: 10px;
+    background: #fff;
+    border-bottom: 1px solid #ddd;
+}
+
+/* Hide ads for premium users via JavaScript */
+.ad-wrapper[data-user-id]:not([data-user-id=""]) {
+    /* Premium users will have ads hidden via JS */
+}
+
+/* Responsive ad styles */
+@media (max-width: 768px) {
+    .ad-container,
+    .ad-wrapper {
+        margin: 15px 0;
+        min-height: 80px;
+    }
+    
+    .header-ad-container {
+        padding: 5px;
+    }
+}
+

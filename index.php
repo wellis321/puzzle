@@ -2,12 +2,24 @@
 require_once 'config.php';
 require_once 'includes/Database.php';
 require_once 'includes/Session.php';
+require_once 'includes/Auth.php';
+require_once 'includes/Subscription.php';
+require_once 'includes/Ads.php';
 require_once 'includes/Puzzle.php';
 require_once 'includes/Game.php';
 
 $session = new Session();
+$auth = new Auth();
+$subscription = new Subscription();
+$ads = new Ads();
 $puzzle = new Puzzle();
-$game = new Game($session->getSessionId());
+$game = new Game($session->getSessionId(), $auth->getUserId());
+
+// Get user info
+$currentUser = $auth->getCurrentUser();
+$userId = $auth->getUserId();
+$isPremium = $userId ? $subscription->isPremium($userId) : false;
+$shouldShowAds = $ads->shouldShowAds($userId);
 
 // Get user rank and progress
 $rankProgress = $game->getRankProgress();
@@ -146,7 +158,30 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                     <h1><?php echo APP_NAME; ?></h1>
                     <p class="tagline">Solve the daily mystery</p>
                 </div>
-                <?php if (!$ranksTableMissing): ?>
+                <div class="header-right">
+                    <?php if ($auth->isLoggedIn()): ?>
+                        <div class="user-info" style="display: flex; align-items: center; gap: 15px;">
+                            <span style="color: #8b4513; font-weight: 600;"><?php echo htmlspecialchars($auth->getDisplayName()); ?></span>
+                            <?php if ($isPremium): ?>
+                                <span style="background: #ffd700; color: #8b4513; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600;">PREMIUM</span>
+                            <?php endif; ?>
+                            <a href="profile.php" style="color: #8b4513; text-decoration: none; font-size: 14px;">Profile</a>
+                            <a href="logout.php" style="color: #8b4513; text-decoration: none; font-size: 14px;">Logout</a>
+                        </div>
+                    <?php else: ?>
+                        <div class="auth-buttons" style="display: flex; gap: 10px;">
+                            <a href="login.php" style="color: #8b4513; text-decoration: none; padding: 8px 16px; border: 2px solid #8b4513; border-radius: 4px; font-weight: 600;">Log In</a>
+                            <a href="register.php" style="background: #8b4513; color: white; text-decoration: none; padding: 8px 16px; border-radius: 4px; font-weight: 600;">Sign Up</a>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <?php if ($shouldShowAds): ?>
+                <div class="header-ad-container">
+                    <?php echo $ads->renderAdContainer('banner', $userId); ?>
+                </div>
+            <?php endif; ?>
+            <?php if (!$ranksTableMissing): ?>
                 <div class="detective-rank rank-level-<?php echo $rankProgress['current_level']; ?>">
                     <div class="rank-badge">
                         <div class="rank-icon">🔍</div>
@@ -412,6 +447,13 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                             <?php endif; ?>
                         </div>
                     <?php else: ?>
+                        <?php if ($shouldShowAds && $completion): ?>
+                            <!-- Ad after completion -->
+                            <div style="margin: 30px 0;">
+                                <?php echo $ads->renderAdContainer('inline', $userId); ?>
+                            </div>
+                        <?php endif; ?>
+                        
                         <!-- Debug: No solution found -->
                         <?php if (EnvLoader::get('APP_ENV') === 'development'): ?>
                             <div style="margin-top: 40px; padding: 20px; background: #fff3cd; border: 2px solid #ffc107; border-radius: 8px;">
@@ -653,6 +695,12 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                             See All Information Again
                         </button>
                     </div>
+                    
+                    <?php if ($shouldShowAds): ?>
+                        <div style="margin: 20px 0;">
+                            <?php echo $ads->renderAdContainer('inline', $userId); ?>
+                        </div>
+                    <?php endif; ?>
                     
                     <div class="task">
                         <h3>Find the ONE detail that doesn't fit</h3>

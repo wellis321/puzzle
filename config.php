@@ -35,6 +35,16 @@ if (strpos($adminPassword, '$2y$') === 0) {
 // Timezone
 date_default_timezone_set(EnvLoader::get('TIMEZONE', 'America/New_York'));
 
+// Stripe Configuration
+define('STRIPE_PUBLIC_KEY', EnvLoader::get('STRIPE_PUBLIC_KEY', ''));
+define('STRIPE_SECRET_KEY', EnvLoader::get('STRIPE_SECRET_KEY', ''));
+define('STRIPE_WEBHOOK_SECRET', EnvLoader::get('STRIPE_WEBHOOK_SECRET', ''));
+
+// Ad Configuration
+define('ENABLE_ADS', EnvLoader::get('ENABLE_ADS', 'true') === 'true');
+define('AD_PROVIDER', EnvLoader::get('AD_PROVIDER', 'adsense'));
+define('ADSENSE_CLIENT_ID', EnvLoader::get('ADSENSE_CLIENT_ID', ''));
+
 // Error Reporting (based on environment)
 $appEnv = EnvLoader::get('APP_ENV', 'development');
 if ($appEnv === 'production') {
