@@ -8,6 +8,7 @@ class AIPuzzleGenerator {
     private $provider;
     private $apiKey;
     private $baseUrl;
+    private $model;
 
     public function __construct($provider = 'gemini') {
         $this->provider = $provider;
@@ -38,7 +39,10 @@ class AIPuzzleGenerator {
     private function setBaseUrl() {
         switch ($this->provider) {
             case 'gemini':
-                $this->baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent';
+                // Use gemini-1.5-flash (fast and free, recommended)
+                // Alternative: gemini-1.5-pro for more complex tasks
+                $this->model = 'gemini-1.5-flash';
+                $this->baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models/' . $this->model . ':generateContent';
                 break;
             case 'groq':
                 $this->baseUrl = 'https://api.groq.com/openai/v1/chat/completions';
