@@ -54,10 +54,141 @@ class AIPuzzleGenerator {
         }
     }
 
-    public function generatePuzzle($date, $difficulty) {
+    public function generatePuzzle($date, $difficulty, $generateImage = false) {
         $prompt = $this->buildPrompt($difficulty);
         $response = $this->callAI($prompt);
-        return $this->parseResponse($response, $difficulty);
+        $puzzle = $this->parseResponse($response, $difficulty);
+        
+        // Generate image if requested (after text is generated)
+        if ($generateImage && isset($puzzle['solution'])) {
+            try {
+                $imageData = $this->generateSolutionImage($puzzle);
+                if ($imageData) {
+                    $puzzle['solution_image'] = $imageData;
+                }
+            } catch (Exception $e) {
+                // Image generation failed, but puzzle text is still valid
+                error_log("Image generation failed: " . $e->getMessage());
+            }
+        }
+        
+        return $puzzle;
+    }
+    
+    /**
+     * Generate an image for the solution based on puzzle content
+     */
+    public function generateSolutionImage($puzzle) {
+        // Create a prompt for image generation based on the puzzle
+        $imagePrompt = $this->buildImagePrompt($puzzle);
+        
+        // Try to generate image using available services
+        // Priority: OpenAI DALL-E > Other services
+        
+        if ($this->provider === 'openai' || !empty(EnvLoader::get('OPENAI_API_KEY'))) {
+            return $this->generateImageWithDALLE($imagePrompt);
+        }
+        
+        // Could add other image generation services here
+        // For now, return null if no image API available
+        return null;
+    }
+    
+    /**
+     * Build a prompt for image generation based on puzzle content
+     */
+    private function buildImagePrompt($puzzle) {
+        $theme = $puzzle['theme'] ?? 'mystery';
+        $title = $puzzle['title'] ?? 'case';
+        $explanation = $puzzle['solution']['explanation'] ?? '';
+        
+        // Extract key elements for image
+        $prompt = "A detailed, realistic illustration of a {$theme} mystery scene. ";
+        $prompt .= "Style: noir detective aesthetic, dramatic lighting, vintage crime scene investigation. ";
+        $prompt .= "Scene shows clues and evidence related to: {$title}. ";
+        $prompt .= "Mood: mysterious, intriguing, professional crime investigation. ";
+        $prompt .= "Color palette: muted tones with dramatic shadows, film noir style. ";
+        $prompt .= "No text, no people visible, focus on evidence and scene details.";
+        
+        return $prompt;
+    }
+    
+    /**
+     * Generate image using DALL-E (OpenAI)
+     */
+    private function generateImageWithDALLE($prompt) {
+        $apiKey = EnvLoader::get('OPENAI_API_KEY');
+        if (empty($apiKey)) {
+            throw new Exception("OpenAI API key not found. Add OPENAI_API_KEY to .env for image generation.");
+        }
+        
+        $url = 'https://api.openai.com/v1/images/generations';
+        
+        $data = [
+            'model' => 'dall-e-3',
+            'prompt' => $prompt,
+            'n' => 1,
+            'size' => '1024x1024',
+            'quality' => 'standard'
+        ];
+        
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $apiKey
+        ]);
+        
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        
+        if ($httpCode !== 200) {
+            throw new Exception("DALL-E API error (HTTP {$httpCode}): " . $response);
+        }
+        
+        $result = json_decode($response, true);
+        
+        if (!isset($result['data'][0]['url'])) {
+            throw new Exception("Unexpected DALL-E response format");
+        }
+        
+        // Download and save the image
+        return $this->downloadAndSaveImage($result['data'][0]['url'], $prompt);
+    }
+    
+    /**
+     * Download image from URL and save to server
+     */
+    private function downloadAndSaveImage($imageUrl, $prompt) {
+        // Create images directory if it doesn't exist
+        $imagesDir = __DIR__ . '/../images/solutions';
+        if (!is_dir($imagesDir)) {
+            mkdir($imagesDir, 0755, true);
+        }
+        
+        // Generate unique filename
+        $filename = 'solution_' . uniqid() . '_' . time() . '.png';
+        $filepath = $imagesDir . '/' . $filename;
+        
+        // Download image
+        $imageData = file_get_contents($imageUrl);
+        if ($imageData === false) {
+            throw new Exception("Failed to download image from URL");
+        }
+        
+        // Save to disk
+        if (file_put_contents($filepath, $imageData) === false) {
+            throw new Exception("Failed to save image to disk");
+        }
+        
+        // Return relative path for database storage
+        return [
+            'path' => 'images/solutions/' . $filename,
+            'prompt' => $prompt
+        ];
     }
 
     private function buildPrompt($difficulty) {

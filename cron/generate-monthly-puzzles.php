@@ -15,6 +15,7 @@ require_once __DIR__ . '/../includes/AIPuzzleGenerator.php';
 // Configuration
 $provider = EnvLoader::get('AI_PROVIDER', 'gemini'); // gemini, groq, or openai
 $generateDaysAhead = 30; // Generate puzzles for next 30 days
+$generateImages = EnvLoader::get('GENERATE_IMAGES', 'false') === 'true'; // Set to 'true' in .env to enable image generation
 
 try {
     $puzzle = new Puzzle();
@@ -44,7 +45,7 @@ try {
             }
             
             try {
-                $generatedPuzzle = $generator->generatePuzzle($targetDate, $difficulty);
+                $generatedPuzzle = $generator->generatePuzzle($targetDate, $difficulty, $generateImages);
                 
                 if ($generatedPuzzle) {
                     $puzzleId = $puzzle->createPuzzle([
@@ -72,11 +73,20 @@ try {
                         $puzzle->createHint($puzzleId, $order + 1, $hint);
                     }
                     
-                    // Save solution
+                    // Save solution with optional image
+                    $imagePath = null;
+                    $imagePrompt = null;
+                    if (isset($generatedPuzzle['solution_image'])) {
+                        $imagePath = $generatedPuzzle['solution_image']['path'];
+                        $imagePrompt = $generatedPuzzle['solution_image']['prompt'];
+                    }
+                    
                     $puzzle->createSolution(
                         $puzzleId, 
                         $generatedPuzzle['solution']['explanation'],
-                        $generatedPuzzle['solution']['detailed_reasoning'] ?? ''
+                        $generatedPuzzle['solution']['detailed_reasoning'] ?? '',
+                        $imagePath,
+                        $imagePrompt
                     );
                     
                     $generated[] = "{$targetDate} ({$difficulty})";

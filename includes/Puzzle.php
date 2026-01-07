@@ -128,7 +128,7 @@ class Puzzle {
      * Get solution for a puzzle
      */
     public function getSolution($puzzleId) {
-        $stmt = $this->db->prepare("SELECT * FROM solutions WHERE puzzle_id = ?");
+        $stmt = $this->db->prepare("SELECT explanation, detailed_reasoning, image_path, image_prompt FROM solutions WHERE puzzle_id = ?");
         $stmt->execute([$puzzleId]);
         return $stmt->fetch();
     }
@@ -229,14 +229,16 @@ class Puzzle {
     /**
      * Create solution for a puzzle
      */
-    public function createSolution($puzzleId, $explanation, $detailedReasoning = '') {
+    public function createSolution($puzzleId, $explanation, $detailedReasoning = '', $imagePath = null, $imagePrompt = null) {
         $stmt = $this->db->prepare("
-            INSERT INTO solutions (puzzle_id, explanation, detailed_reasoning)
-            VALUES (?, ?, ?)
+            INSERT INTO solutions (puzzle_id, explanation, detailed_reasoning, image_path, image_prompt)
+            VALUES (?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE
                 explanation = VALUES(explanation),
-                detailed_reasoning = VALUES(detailed_reasoning)
+                detailed_reasoning = VALUES(detailed_reasoning),
+                image_path = VALUES(image_path),
+                image_prompt = VALUES(image_prompt)
         ");
-        return $stmt->execute([$puzzleId, $explanation, $detailedReasoning]);
+        return $stmt->execute([$puzzleId, $explanation, $detailedReasoning, $imagePath, $imagePrompt]);
     }
 }

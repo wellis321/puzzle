@@ -1,31 +1,20 @@
-# Environment files (NEVER commit these!)
+# Environment files
 .env
 .env.local
-.env.production
 .env.*.local
 
 # Backup files
 *.bak
 *.backup
 *.old
-*~
 
-# Log files
-*.log
-logs/
+# Images directory (generated content)
+images/solutions/*.png
+images/solutions/*.jpg
+images/solutions/*.jpeg
 
-# OS files
-.DS_Store
-Thumbs.db
-.DS_Store?
-
-# IDE files
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
-
-# Temporary files
-tmp/
-temp/
+# But keep the directory structure
+!images/
+!images/solutions/
+!images/.gitkeep
+!images/solutions/.gitkeep

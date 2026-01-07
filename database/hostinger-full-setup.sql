@@ -76,7 +76,10 @@ CREATE TABLE IF NOT EXISTS solutions (
     puzzle_id INT NOT NULL UNIQUE,
     explanation TEXT NOT NULL,
     detailed_reasoning TEXT,
-    FOREIGN KEY (puzzle_id) REFERENCES puzzles(id) ON DELETE CASCADE
+    image_path VARCHAR(255) NULL,
+    image_prompt TEXT NULL,
+    FOREIGN KEY (puzzle_id) REFERENCES puzzles(id) ON DELETE CASCADE,
+    INDEX idx_solution_image (image_path)
 ) ENGINE=InnoDB;
 
 -- User sessions table: track anonymous users via session/cookie

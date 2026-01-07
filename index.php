@@ -60,7 +60,7 @@ if (!$todaysPuzzle) {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title><?php echo APP_NAME; ?> - No Puzzle Available</title>
-        <link rel="stylesheet" href="css/style.css">
+        <link rel="stylesheet" href="css/style.css?v=<?php echo filemtime(__DIR__ . '/css/style.css'); ?>">
     </head>
     <body>
         <div class="container">
@@ -102,7 +102,7 @@ if (EnvLoader::get('APP_ENV') === 'development') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo APP_NAME; ?> - Daily Mystery Puzzle</title>
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/style.css?v=<?php echo filemtime(__DIR__ . '/css/style.css'); ?>">
 </head>
 <body>
     <div class="container">
@@ -246,13 +246,27 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                     ?>
                         <div class="solution">
                             <h3>The Solution</h3>
+                            
+                            <?php if (!empty($solution['image_path'])): ?>
+                                <div class="solution-image-container">
+                                    <img src="<?php echo htmlspecialchars($solution['image_path']); ?>" 
+                                         alt="Solution illustration" 
+                                         class="solution-image"
+                                         loading="lazy">
+                                </div>
+                            <?php endif; ?>
+                            
                             <p><strong>Why it doesn't fit:</strong></p>
                             <p><?php echo nl2br(htmlspecialchars($solution['explanation'])); ?></p>
 
+                            <?php if (!empty($solution['detailed_reasoning'])): ?>
                             <details style="margin-top: 20px;">
                                 <summary style="cursor: pointer; font-weight: bold;">Show detailed reasoning</summary>
-                                <p style="margin-top: 10px;"><?php echo nl2br(htmlspecialchars($solution['detailed_reasoning'])); ?></p>
+                                <div style="margin-top: 10px;">
+                                    <p><?php echo nl2br(htmlspecialchars($solution['detailed_reasoning'])); ?></p>
+                                </div>
                             </details>
+                            <?php endif; ?>
                         </div>
                     <?php endif; ?>
 

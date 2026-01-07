@@ -18,13 +18,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate'])) {
     $targetDate = $_POST['puzzle_date'] ?? date('Y-m-d');
     $difficulty = $_POST['difficulty'] ?? 'medium';
     $aiProvider = $_POST['ai_provider'] ?? 'gemini';
+    $generateImage = isset($_POST['generate_image']) && $_POST['generate_image'] === '1';
     
     // Load AI generator
     require_once '../includes/AIPuzzleGenerator.php';
     $generator = new AIPuzzleGenerator($aiProvider);
     
     try {
-        $generatedPuzzle = $generator->generatePuzzle($targetDate, $difficulty);
+        $generatedPuzzle = $generator->generatePuzzle($targetDate, $difficulty, $generateImage);
         
         if ($generatedPuzzle) {
             // Save to database
@@ -47,10 +48,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate'])) {
                 $puzzle->createHint($puzzleId, $order + 1, $hint);
             }
             
-            // Save solution
-            $puzzle->createSolution($puzzleId, $generatedPuzzle['solution']['explanation'], $generatedPuzzle['solution']['detailed_reasoning']);
+            // Save solution with optional image
+            $imagePath = null;
+            $imagePrompt = null;
+            if (isset($generatedPuzzle['solution_image'])) {
+                $imagePath = $generatedPuzzle['solution_image']['path'];
+                $imagePrompt = $generatedPuzzle['solution_image']['prompt'];
+            }
             
-            $success = "Puzzle generated and saved successfully! <a href='puzzle-edit.php?id={$puzzleId}'>Edit puzzle</a>";
+            $puzzle->createSolution(
+                $puzzleId, 
+                $generatedPuzzle['solution']['explanation'], 
+                $generatedPuzzle['solution']['detailed_reasoning'],
+                $imagePath,
+                $imagePrompt
+            );
+            
+            $imageNote = $generateImage && $imagePath ? " (Image generated!)" : "";
+            $success = "Puzzle generated and saved successfully!{$imageNote} <a href='puzzle-edit.php?id={$puzzleId}'>Edit puzzle</a>";
         } else {
             $error = "Failed to generate puzzle. Please check your API key and try again.";
         }
@@ -63,16 +78,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_all'])) {
     $targetDate = $_POST['puzzle_date'] ?? date('Y-m-d');
     $aiProvider = $_POST['ai_provider'] ?? 'gemini';
+    $generateImage = isset($_POST['generate_image']) && $_POST['generate_image'] === '1';
     
     require_once '../includes/AIPuzzleGenerator.php';
     $generator = new AIPuzzleGenerator($aiProvider);
     
     $generated = [];
     $errors = [];
+    $imagesGenerated = 0;
     
     foreach (['easy', 'medium', 'hard'] as $difficulty) {
         try {
-            $generatedPuzzle = $generator->generatePuzzle($targetDate, $difficulty);
+            $generatedPuzzle = $generator->generatePuzzle($targetDate, $difficulty, $generateImage);
             
             if ($generatedPuzzle) {
                 $puzzleId = $puzzle->createPuzzle([
@@ -92,7 +109,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_all'])) {
                     $puzzle->createHint($puzzleId, $order + 1, $hint);
                 }
                 
-                $puzzle->createSolution($puzzleId, $generatedPuzzle['solution']['explanation'], $generatedPuzzle['solution']['detailed_reasoning']);
+                // Save solution with optional image
+                $imagePath = null;
+                $imagePrompt = null;
+                if (isset($generatedPuzzle['solution_image'])) {
+                    $imagePath = $generatedPuzzle['solution_image']['path'];
+                    $imagePrompt = $generatedPuzzle['solution_image']['prompt'];
+                    $imagesGenerated++;
+                }
+                
+                $puzzle->createSolution(
+                    $puzzleId, 
+                    $generatedPuzzle['solution']['explanation'], 
+                    $generatedPuzzle['solution']['detailed_reasoning'],
+                    $imagePath,
+                    $imagePrompt
+                );
                 
                 $generated[] = ucfirst($difficulty);
             }
@@ -102,7 +134,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_all'])) {
     }
     
     if (!empty($generated)) {
-        $success = "Generated puzzles: " . implode(", ", $generated);
+        $imageNote = $imagesGenerated > 0 ? " ({$imagesGenerated} images generated)" : "";
+        $success = "Generated puzzles: " . implode(", ", $generated) . $imageNote;
     }
     if (!empty($errors)) {
         $error = "Errors: " . implode("; ", $errors);
@@ -178,6 +211,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_all'])) {
                         </select>
                     </div>
 
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" name="generate_image" value="1" id="generate_image">
+                            <span>Generate solution image (requires OpenAI API key for DALL-E)</span>
+                        </label>
+                        <small style="color: #666; display: block; margin-top: 5px;">
+                            Creates an AI-generated illustration of the mystery scene for the solution section
+                        </small>
+                    </div>
+
                     <div class="form-actions">
                         <button type="submit" name="generate" class="btn btn-primary">
                             Generate Single Puzzle
@@ -206,6 +249,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_all'])) {
                             <option value="groq">Groq (Free, Very Fast)</option>
                             <option value="openai">OpenAI GPT-3.5 (Free tier available)</option>
                         </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" name="generate_image" value="1" id="batch_generate_image">
+                            <span>Generate solution images (requires OpenAI API key for DALL-E)</span>
+                        </label>
+                        <small style="color: #666; display: block; margin-top: 5px;">
+                            Creates AI-generated illustrations for all three puzzles (may take longer)
+                        </small>
                     </div>
 
                     <div class="form-actions">
