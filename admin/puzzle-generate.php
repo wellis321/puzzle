@@ -228,6 +228,129 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_all'])) {
     }
 }
 
+// Handle week generation (7 days × 3 difficulties = 21 puzzles)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_week'])) {
+    $startDate = $_POST['week_start_date'] ?? date('Y-m-d');
+    $aiProvider = $_POST['ai_provider'] ?? 'gemini';
+    $generateImage = isset($_POST['generate_image']) && $_POST['generate_image'] === '1';
+    
+    // Increase execution time significantly for week generation
+    // 7 days × 3 puzzles × ~2 minutes = ~42 minutes max, but we'll set higher for safety
+    if (in_array($aiProvider, ['local', 'llama'])) {
+        set_time_limit(3600); // 60 minutes for week generation
+    } else {
+        set_time_limit(1800); // 30 minutes for cloud APIs
+    }
+    
+    require_once '../includes/AIPuzzleGenerator.php';
+    $generator = new AIPuzzleGenerator($aiProvider);
+    
+    $generated = [];
+    $errors = [];
+    $skipped = [];
+    $imagesGenerated = 0;
+    
+    // Generate for 7 days starting from start date
+    for ($dayOffset = 0; $dayOffset < 7; $dayOffset++) {
+        $targetDate = date('Y-m-d', strtotime($startDate . " +{$dayOffset} days"));
+        
+        foreach (['easy', 'medium', 'hard'] as $difficulty) {
+            try {
+                // Check if puzzle already exists for this date and difficulty
+                $existingPuzzle = $puzzle->getPuzzleByDate($targetDate, $difficulty);
+                if ($existingPuzzle) {
+                    $skipped[] = "{$targetDate} ({$difficulty})";
+                    continue; // Skip if already exists
+                }
+                
+                $generatedPuzzle = $generator->generatePuzzle($targetDate, $difficulty, $generateImage);
+                
+                if ($generatedPuzzle) {
+                    $puzzleId = $puzzle->createPuzzle([
+                        'puzzle_date' => $targetDate,
+                        'title' => $generatedPuzzle['title'],
+                        'difficulty' => $difficulty,
+                        'theme' => $generatedPuzzle['theme'],
+                        'case_summary' => $generatedPuzzle['case_summary'],
+                        'report_text' => $generatedPuzzle['report_text']
+                    ]);
+                    
+                    // Save statements - SHUFFLE them first to randomize position of correct answer
+                    $statements = $generatedPuzzle['statements'];
+                    $keys = array_keys($statements);
+                    shuffle($keys);
+                    $shuffledStatements = [];
+                    foreach ($keys as $key) {
+                        $shuffledStatements[] = $statements[$key];
+                    }
+                    foreach ($shuffledStatements as $order => $stmt) {
+                        $puzzle->createStatement($puzzleId, $order + 1, $stmt['text'], $stmt['is_correct'], $stmt['category'] ?? 'general');
+                    }
+                    
+                    foreach ($generatedPuzzle['hints'] as $order => $hint) {
+                        $puzzle->createHint($puzzleId, $order + 1, $hint);
+                    }
+                    
+                    // Save solution with optional image
+                    $imagePath = null;
+                    $imagePrompt = null;
+                    if (isset($generatedPuzzle['solution_image'])) {
+                        $imagePath = $generatedPuzzle['solution_image']['path'];
+                        $imagePrompt = $generatedPuzzle['solution_image']['prompt'];
+                        $imagesGenerated++;
+                    }
+                    
+                    $puzzle->createSolution(
+                        $puzzleId, 
+                        $generatedPuzzle['solution']['explanation'], 
+                        $generatedPuzzle['solution']['detailed_reasoning'],
+                        $imagePath,
+                        $imagePrompt
+                    );
+                    
+                    $generated[] = "{$targetDate} ({$difficulty})";
+                    
+                    // Rate limiting: wait between requests
+                    if ($aiProvider === 'gemini') {
+                        sleep(4); // Gemini: 15 requests/min
+                    } elseif ($aiProvider === 'groq') {
+                        usleep(500000); // Groq: faster, but still wait 0.5 seconds
+                    } elseif ($aiProvider === 'openai') {
+                        sleep(1); // OpenAI: be reasonable
+                    } elseif (in_array($aiProvider, ['local', 'llama'])) {
+                        sleep(2); // Local Llama: can be slow, wait 2 seconds
+                    }
+                }
+            } catch (Exception $e) {
+                $errors[] = "{$targetDate} ({$difficulty}): " . $e->getMessage();
+            }
+        }
+    }
+    
+    // Build success message
+    if (!empty($generated)) {
+        $success = "Week generation complete! Generated " . count($generated) . " puzzle(s).";
+        if ($generateImage && $imagesGenerated > 0) {
+            $success .= " Generated {$imagesGenerated} solution image(s).";
+        }
+        if (!empty($skipped)) {
+            $success .= " Skipped " . count($skipped) . " puzzle(s) (already exist).";
+        }
+        if (!empty($errors)) {
+            $success .= " " . count($errors) . " error(s) occurred.";
+        }
+    } else {
+        $error = "No puzzles were generated. " . (empty($skipped) ? "Check your API configuration." : "All puzzles for this week already exist.");
+    }
+    
+    if (!empty($errors)) {
+        $error = ($error ?? '') . " Errors: " . implode('; ', array_slice($errors, 0, 5));
+        if (count($errors) > 5) {
+            $error .= " (and " . (count($errors) - 5) . " more)";
+        }
+    }
+}
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -369,6 +492,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_all'])) {
                     <div class="form-actions">
                         <button type="submit" name="generate_all" class="btn btn-primary">
                             🚀 Generate All 3 Difficulties
+                        </button>
+                    </div>
+                </form>
+
+                <hr style="margin: 30px 0; border: none; border-top: 2px solid #e0e0e0;">
+
+                <h3>Generate Week (7 Days)</h3>
+                <p style="margin-bottom: 20px; color: #666;">
+                    Generate a full week of puzzles (7 days × 3 difficulties = 21 puzzles). This will create puzzles starting from the selected date for the next 7 days. Existing puzzles will be skipped.
+                </p>
+                <div style="padding: 15px; background: #fff3cd; border: 2px solid #ffc107; border-radius: 6px; margin-bottom: 20px; color: #856404;">
+                    <strong>⚠️ Warning:</strong> This will generate 21 puzzles and may take a while, especially with local Llama or if generating images. Make sure you have sufficient API quota/time.
+                </div>
+
+                <form method="POST">
+                    <div class="form-group">
+                        <label for="week_start_date">Start Date (Week begins on this date)</label>
+                        <input type="date" id="week_start_date" name="week_start_date" 
+                               value="<?php echo date('Y-m-d'); ?>" required>
+                        <small style="color: #666; display: block; margin-top: 5px;">
+                            Puzzles will be generated for this date and the next 6 days (7 days total).
+                        </small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="week_ai_provider">AI Provider</label>
+                        <select id="week_ai_provider" name="ai_provider">
+                            <option value="gemini" selected>Google Gemini (Free: 15 req/min)</option>
+                            <option value="groq">Groq (Free, Very Fast)</option>
+                            <option value="openai">OpenAI GPT-3.5 (Free tier available)</option>
+                            <option value="local">Local Llama (Ollama - No API key needed)</option>
+                        </select>
+                        <small style="color: #666; display: block; margin-top: 5px;">
+                            <strong>For Gemini:</strong> Will take approximately 21 minutes (4 sec delay between requests)<br>
+                            <strong>For Groq:</strong> Will take approximately 2-3 minutes<br>
+                            <strong>For Local Llama:</strong> Will take approximately 40-60 minutes (can be slow)
+                        </small>
+                    </div>
+
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" name="generate_image" value="1" id="week_generate_image">
+                            <span>Generate solution images (requires OpenAI API key for DALL-E)</span>
+                        </label>
+                        <small style="color: #666; display: block; margin-top: 5px;">
+                            Creates AI-generated illustrations for all puzzles. <strong>This will significantly increase generation time.</strong><br>
+                            <strong>Note:</strong> Images always use OpenAI DALL-E, even if you select Groq or Gemini for puzzle text generation.
+                        </small>
+                        <?php if (empty(EnvLoader::get('OPENAI_API_KEY'))): ?>
+                            <div style="margin-top: 10px; padding: 10px; background: #fff3cd; border: 2px solid #ffc107; border-radius: 4px; color: #856404;">
+                                ⚠️ <strong>Warning:</strong> OPENAI_API_KEY not found in .env file. Image generation will fail.
+                            </div>
+                        <?php endif; ?>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" name="generate_week" class="btn btn-primary" style="background: #ff9800; font-size: 16px; padding: 12px 24px;">
+                            📅 Generate Full Week (21 Puzzles)
                         </button>
                     </div>
                 </form>
