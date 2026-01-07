@@ -347,6 +347,11 @@ SOLUTION REQUIREMENTS (VERY IMPORTANT):
   * Details the logical reasoning process
   * Provides a thorough walkthrough of why this is the answer
 
+IMPORTANT - CORRECT ANSWER PLACEMENT:
+- The correct answer (is_correct: true) should be placed RANDOMLY among the statements
+- Do NOT always put it first, second, or last - vary the position each time
+- Include 5-6 statements total, with exactly ONE having is_correct: true
+
 Return ONLY valid JSON in this exact format:
 {
   \"title\": \"Unique Case Title\",
@@ -356,7 +361,9 @@ Return ONLY valid JSON in this exact format:
   \"statements\": [
     {\"text\": \"Statement text\", \"is_correct\": false, \"category\": \"witness\"},
     {\"text\": \"Another statement\", \"is_correct\": false, \"category\": \"evidence\"},
-    {\"text\": \"The contradictory statement\", \"is_correct\": true, \"category\": \"timeline\"}
+    {\"text\": \"The contradictory statement - PLACE THIS RANDOMLY, NOT ALWAYS HERE\", \"is_correct\": true, \"category\": \"timeline\"},
+    {\"text\": \"More statements\", \"is_correct\": false, \"category\": \"physical\"},
+    {\"text\": \"Additional facts\", \"is_correct\": false, \"category\": \"background\"}
   ],
   \"hints\": [
     \"First hint text\",
@@ -368,7 +375,7 @@ Return ONLY valid JSON in this exact format:
   }
 }
 
-Make sure exactly ONE statement has \"is_correct\": true. Make it challenging but solvable.";
+CRITICAL: Exactly ONE statement must have \"is_correct\": true - place it at a RANDOM position (not always first or last). Make it challenging but solvable.";
 
         return $prompt;
     }
@@ -669,21 +676,50 @@ Make sure exactly ONE statement has \"is_correct\": true. Make it challenging bu
             $puzzle['solution']['detailed_reasoning'] = $puzzle['solution']['explanation'];
         }
 
+        // Normalize is_correct values (handle string "true"/"false" from AI)
+        $correctIndex = -1;
+        foreach ($puzzle['statements'] as $index => &$stmt) {
+            // Convert string "true"/"false" to boolean
+            if (isset($stmt['is_correct'])) {
+                if (is_string($stmt['is_correct'])) {
+                    $stmt['is_correct'] = strtolower($stmt['is_correct']) === 'true' || $stmt['is_correct'] === '1';
+                } else {
+                    $stmt['is_correct'] = (bool)$stmt['is_correct'];
+                }
+                
+                if ($stmt['is_correct'] && $correctIndex === -1) {
+                    $correctIndex = $index;
+                }
+            } else {
+                $stmt['is_correct'] = false;
+            }
+        }
+        unset($stmt); // Break reference
+        
         // Validate exactly one correct statement
         $correctCount = 0;
         foreach ($puzzle['statements'] as $stmt) {
-            if (isset($stmt['is_correct']) && $stmt['is_correct']) {
+            if ($stmt['is_correct']) {
                 $correctCount++;
             }
         }
 
         if ($correctCount !== 1) {
-            // Auto-fix: mark first as correct if none, or mark only first as correct
+            // Auto-fix: pick a RANDOM statement as correct (not always the first!)
+            // This prevents predictable "always option 1" patterns
             foreach ($puzzle['statements'] as &$stmt) {
                 $stmt['is_correct'] = false;
             }
+            unset($stmt);
+            
             if (!empty($puzzle['statements'])) {
-                $puzzle['statements'][0]['is_correct'] = true;
+                // Pick a random index, preferring middle options for variety
+                $numStatements = count($puzzle['statements']);
+                $randomIndex = rand(0, $numStatements - 1);
+                $puzzle['statements'][$randomIndex]['is_correct'] = true;
+                
+                // Log this so we know when auto-fix is happening
+                error_log("AI Puzzle Generator: Auto-fixed correct answer to statement " . ($randomIndex + 1) . " (was: " . ($correctCount === 0 ? "none marked" : "multiple marked") . ")");
             }
         }
 
