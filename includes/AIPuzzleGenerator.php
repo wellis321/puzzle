@@ -311,7 +311,7 @@ class AIPuzzleGenerator {
         // Select a random theme suggestion (AI can use it or create something similar but different)
         $suggestedTheme = $themePool[array_rand($themePool)];
 
-        $prompt = "Create a UNIQUE and ORIGINAL mystery puzzle case file in JSON format. The puzzle should be a \"one detail doesn't fit\" style mystery where players must find one statement that contradicts the others.
+        $prompt = "Create a UNIQUE and ORIGINAL mystery puzzle case file in JSON format. The puzzle should be a \"one detail doesn't fit\" style mystery where players must find one statement that contradicts the case summary or report.
 
 CRITICAL VARIETY REQUIREMENTS:
 {$varietyInstructions}
@@ -332,25 +332,42 @@ TITLE REQUIREMENTS:
 
 SCENARIO REQUIREMENTS:
 1. Create an engaging, ORIGINAL mystery scenario - be creative!
-2. Write a case summary (2-3 sentences) that sets a unique scene
-3. Create a detailed report with multiple sections (use **section_name** for headers)
-4. Include 5-6 statements/facts (one must be incorrect/contradictory)
-5. Make the incorrect statement subtle but logically inconsistent with the others
-6. Create 2 progressive hints
-7. CRITICAL: Provide a detailed solution with BOTH explanation and detailed_reasoning fields
+2. Write a case summary (2-3 sentences) that sets a unique scene and provides key facts/timeline
+3. Create a detailed report with multiple sections (use **section_name** for headers) that includes specific details, times, dates, locations, or facts
+4. Include 5-6 statements/facts as options - ALL but ONE must be CONSISTENT with the case summary and report
+5. ONE statement must directly CONTRADICT information explicitly stated in the case summary or report
+6. The contradiction MUST be clear and provable by referencing specific facts from the summary/report
+7. Create 2 progressive hints that guide players toward noticing the contradiction
+8. CRITICAL: Provide a detailed solution with BOTH explanation and detailed_reasoning fields
+
+CRITICAL - CONTRADICTION REQUIREMENTS:
+The incorrect statement (is_correct: true) MUST:
+- Directly contradict a specific fact stated in the case summary or incident report
+- Conflict with timeline, numbers, names, locations, or other concrete facts mentioned
+- Be provably wrong by comparing it to the summary/report text
+- Examples of good contradictions:
+  * Report says \"incident at 2:00 PM\" but statement says \"incident at 3:00 PM\"
+  * Report says \"3 people present\" but statement says \"4 people present\"
+  * Report says \"south entrance\" but statement says \"north entrance\"
+- AVOID vague contradictions like \"unexpected\" vs \"expected\" or subjective interpretations
+- The contradiction must be FACTUAL and CLEAR when reading the summary/report
 
 SOLUTION REQUIREMENTS (VERY IMPORTANT):
-- \"explanation\": Must be a brief but clear explanation (2-4 sentences) of why the incorrect statement doesn't fit
-- \"detailed_reasoning\": Must be a comprehensive step-by-step analysis (4-8 sentences) that:
-  * Points out the specific contradiction
-  * Explains how the incorrect statement conflicts with other facts
-  * Details the logical reasoning process
-  * Provides a thorough walkthrough of why this is the answer
+- \"explanation\": Must clearly state (2-4 sentences):
+  * Which statement is contradictory
+  * What specific fact in the summary/report it contradicts
+  * Why this makes it the wrong answer
+- \"detailed_reasoning\": Must provide (4-8 sentences):
+  * Quote or reference the specific fact from summary/report that is contradicted
+  * Explain exactly how the incorrect statement conflicts with this fact
+  * Walk through why all other statements are consistent with the facts
+  * Conclude why this is clearly the contradictory statement
 
 IMPORTANT - CORRECT ANSWER PLACEMENT:
 - The correct answer (is_correct: true) should be placed RANDOMLY among the statements
 - Do NOT always put it first, second, or last - vary the position each time
 - Include 5-6 statements total, with exactly ONE having is_correct: true
+- The contradictory statement must be clearly identifiable when comparing to summary/report
 
 Return ONLY valid JSON in this exact format:
 {
@@ -740,6 +757,35 @@ CRITICAL: Exactly ONE statement must have \"is_correct\": true - place it at a R
                 
                 // Log this so we know when auto-fix is happening
                 error_log("AI Puzzle Generator: Auto-fixed correct answer to statement " . ($randomIndex + 1) . " (was: " . ($correctCount === 0 ? "none marked" : "multiple marked") . ")");
+            }
+        }
+        
+        // Validate that the solution explanation is coherent and references the contradiction
+        $correctStatement = null;
+        foreach ($puzzle['statements'] as $stmt) {
+            if ($stmt['is_correct']) {
+                $correctStatement = $stmt['text'];
+                break;
+            }
+        }
+        
+        // Ensure solution makes sense and clearly explains the contradiction
+        if ($correctStatement && !empty($puzzle['solution']['explanation'])) {
+            $explanationLower = strtolower($puzzle['solution']['explanation']);
+            $hasContradictionWords = (
+                strpos($explanationLower, 'contradict') !== false ||
+                strpos($explanationLower, "doesn't fit") !== false ||
+                strpos($explanationLower, 'does not fit') !== false ||
+                strpos($explanationLower, 'inconsistent') !== false ||
+                strpos($explanationLower, 'wrong') !== false ||
+                strpos($explanationLower, 'incorrect') !== false ||
+                strpos($explanationLower, 'conflicts') !== false
+            );
+            
+            if (!$hasContradictionWords) {
+                // Enhance explanation to be clearer about the contradiction
+                $puzzle['solution']['explanation'] = "The statement contradicts the facts presented in the case. " . trim($puzzle['solution']['explanation']);
+                error_log("Warning: Enhanced solution explanation to clarify contradiction.");
             }
         }
 
