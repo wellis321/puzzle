@@ -85,9 +85,13 @@ cp -r /Users/wellis/Desktop/Cursor/puzzle /Applications/MAMP/htdocs/
    - Go to Hostinger control panel → Databases
    - Create new MySQL database
    - Use Hostinger's phpMyAdmin to import:
-     - `database/schema.sql`
-     - `database/seed.sql`
-     - `database/sample-puzzles-week1.sql`
+     - **RECOMMENDED**: `database/hostinger-full-setup.sql` (complete setup with all features)
+     - **OR manually**: 
+       - `database/schema.sql`
+       - `database/add-ranks-table.sql` (for detective ranks)
+     - **Optional sample data**:
+       - `database/seed.sql` (Day 1 puzzle)
+       - `database/sample-puzzles-week1.sql` (Days 2-7)
 
 5. **Set file permissions** (if needed)
 

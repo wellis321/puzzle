@@ -1,11 +1,25 @@
--- Daily Mystery Puzzle Database Schema
--- Run this in phpMyAdmin to set up the database
+-- =====================================================
+-- COMPLETE DATABASE SETUP FOR HOSTINGER DEPLOYMENT
+-- (No CREATE DATABASE - for existing databases)
+-- =====================================================
+-- This file sets up all tables for the Daily Mystery Puzzle application
+-- 
+-- IMPORTANT: Select your database in phpMyAdmin FIRST before running this!
+-- 
+-- Steps:
+-- 1. Log into Hostinger phpMyAdmin
+-- 2. Click on your database name in the left sidebar (e.g., u248320297_mystery)
+-- 3. Click the "SQL" tab at the top
+-- 4. Paste this entire file
+-- 5. Click "Go" to execute
+-- =====================================================
 
-CREATE DATABASE IF NOT EXISTS mystery_puzzle CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE mystery_puzzle;
+-- =====================================================
+-- CORE GAME TABLES
+-- =====================================================
 
 -- Puzzles table: stores all daily puzzles
--- Allows up to 3 puzzles per date (one for each difficulty: easy, medium, hard)
+-- Supports up to 3 puzzles per date (easy, medium, hard)
 CREATE TABLE IF NOT EXISTS puzzles (
     id INT AUTO_INCREMENT PRIMARY KEY,
     puzzle_date DATE NOT NULL,
@@ -101,3 +115,44 @@ CREATE TABLE IF NOT EXISTS puzzle_stats (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (puzzle_id) REFERENCES puzzles(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
+
+-- =====================================================
+-- DETECTIVE RANK SYSTEM
+-- =====================================================
+
+-- User ranks table: tracks user progress and calculates detective ranks
+CREATE TABLE IF NOT EXISTS user_ranks (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    session_id VARCHAR(255) NOT NULL UNIQUE,
+    rank_name VARCHAR(50) NOT NULL DEFAULT 'Novice Detective',
+    rank_level INT NOT NULL DEFAULT 1,
+    total_completions INT DEFAULT 0,
+    easy_completions INT DEFAULT 0,
+    medium_completions INT DEFAULT 0,
+    hard_completions INT DEFAULT 0,
+    perfect_scores INT DEFAULT 0,
+    total_attempts INT DEFAULT 0,
+    solved_count INT DEFAULT 0,
+    current_streak INT DEFAULT 0,
+    best_streak INT DEFAULT 0,
+    last_activity_date DATE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (session_id) REFERENCES user_sessions(session_id) ON DELETE CASCADE,
+    INDEX idx_session_id (session_id),
+    INDEX idx_rank_level (rank_level)
+) ENGINE=InnoDB;
+
+-- =====================================================
+-- SETUP COMPLETE
+-- =====================================================
+-- 
+-- Next steps:
+-- 1. Create your .env file on Hostinger with database credentials
+-- 2. Optionally import sample puzzles from:
+--    - database/seed.sql (Day 1 puzzle)
+--    - database/sample-puzzles-week1.sql (Days 2-7)
+-- 3. Log into admin panel and create new puzzles
+-- 
+-- =====================================================
+

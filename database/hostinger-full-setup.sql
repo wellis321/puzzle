@@ -1,11 +1,38 @@
--- Daily Mystery Puzzle Database Schema
--- Run this in phpMyAdmin to set up the database
+-- =====================================================
+-- COMPLETE DATABASE SETUP FOR HOSTINGER DEPLOYMENT
+-- =====================================================
+-- This file contains all tables and migrations needed
+-- for the complete Daily Mystery Puzzle application
+-- 
+-- Run this ONCE in phpMyAdmin on Hostinger to set up
+-- the entire database with all features:
+-- - Multi-difficulty support (Easy, Medium, Hard)
+-- - Detective rank system
+-- - All core game tables
+-- =====================================================
 
-CREATE DATABASE IF NOT EXISTS mystery_puzzle CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE mystery_puzzle;
+-- NOTE: On Hostinger, you MUST select your database first in phpMyAdmin
+-- before running this SQL file. Do NOT try to create the database here.
+-- 
+-- Steps:
+-- 1. In phpMyAdmin, click on your database name in the left sidebar
+-- 2. Click the "SQL" tab
+-- 3. Paste and run this file
+-- 
+-- The database should already be created via Hostinger control panel
+
+-- Remove or comment out the CREATE DATABASE line - Hostinger users don't have permission
+-- CREATE DATABASE IF NOT EXISTS mystery_puzzle CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+-- USE mystery_puzzle;
+-- 
+-- Instead, just make sure you've selected your database in phpMyAdmin first!
+
+-- =====================================================
+-- CORE GAME TABLES
+-- =====================================================
 
 -- Puzzles table: stores all daily puzzles
--- Allows up to 3 puzzles per date (one for each difficulty: easy, medium, hard)
+-- Supports up to 3 puzzles per date (easy, medium, hard)
 CREATE TABLE IF NOT EXISTS puzzles (
     id INT AUTO_INCREMENT PRIMARY KEY,
     puzzle_date DATE NOT NULL,
@@ -101,3 +128,51 @@ CREATE TABLE IF NOT EXISTS puzzle_stats (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (puzzle_id) REFERENCES puzzles(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
+
+-- =====================================================
+-- DETECTIVE RANK SYSTEM
+-- =====================================================
+
+-- User ranks table: tracks user progress and calculates detective ranks
+CREATE TABLE IF NOT EXISTS user_ranks (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    session_id VARCHAR(255) NOT NULL UNIQUE,
+    rank_name VARCHAR(50) NOT NULL DEFAULT 'Novice Detective',
+    rank_level INT NOT NULL DEFAULT 1,
+    total_completions INT DEFAULT 0,
+    easy_completions INT DEFAULT 0,
+    medium_completions INT DEFAULT 0,
+    hard_completions INT DEFAULT 0,
+    perfect_scores INT DEFAULT 0,
+    total_attempts INT DEFAULT 0,
+    solved_count INT DEFAULT 0,
+    current_streak INT DEFAULT 0,
+    best_streak INT DEFAULT 0,
+    last_activity_date DATE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (session_id) REFERENCES user_sessions(session_id) ON DELETE CASCADE,
+    INDEX idx_session_id (session_id),
+    INDEX idx_rank_level (rank_level)
+) ENGINE=InnoDB;
+
+-- =====================================================
+-- ADMIN TABLES (for authentication)
+-- =====================================================
+
+-- Note: Admin users are handled via .env file configuration
+-- No database table needed for admin authentication
+
+-- =====================================================
+-- SETUP COMPLETE
+-- =====================================================
+-- 
+-- Next steps:
+-- 1. Create your .env file on Hostinger with database credentials
+-- 2. Optionally import sample puzzles from:
+--    - database/seed.sql (Day 1 puzzle)
+--    - database/sample-puzzles-week1.sql (Days 2-7)
+-- 3. Log into admin panel and create new puzzles
+-- 
+-- =====================================================
+

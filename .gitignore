@@ -1,3 +1,31 @@
+# Environment files (NEVER commit these!)
 .env
-.DS_Store
+.env.local
+.env.production
+.env.*.local
+
+# Backup files
+*.bak
+*.backup
+*.old
+*~
+
+# Log files
 *.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+.DS_Store?
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Temporary files
+tmp/
+temp/

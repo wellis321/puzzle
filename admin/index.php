@@ -21,6 +21,7 @@ $puzzles = $puzzle->getAllPuzzles();
             <h1><?php echo APP_NAME; ?> Admin</h1>
             <nav>
                 <a href="index.php" class="active">Puzzles</a>
+                <a href="puzzle-generate.php">AI Generator</a>
                 <a href="stats.php">Statistics</a>
                 <a href="logout.php">Logout</a>
             </nav>
@@ -50,9 +51,32 @@ $puzzles = $puzzle->getAllPuzzles();
                             </tr>
                         </thead>
                         <tbody>
-                            <?php foreach ($puzzles as $p): ?>
+                            <?php 
+                            $currentDate = null;
+                            foreach ($puzzles as $p): 
+                                $puzzleDate = $p['puzzle_date'];
+                                $showDateHeader = ($currentDate !== $puzzleDate);
+                                $currentDate = $puzzleDate;
+                            ?>
+                                <?php if ($showDateHeader): ?>
+                                    <tr style="background: #f5f5f5;">
+                                        <td colspan="6" style="padding: 15px; font-weight: 700; font-size: 16px; color: #667eea;">
+                                            📅 <?php echo date('l, F j, Y', strtotime($puzzleDate)); ?>
+                                            <?php 
+                                            // Count puzzles for this date
+                                            $puzzlesForDate = array_filter($puzzles, function($puz) use ($puzzleDate) {
+                                                return $puz['puzzle_date'] === $puzzleDate;
+                                            });
+                                            $difficultyCount = count($puzzlesForDate);
+                                            if ($difficultyCount > 1) {
+                                                echo '<span style="font-size: 14px; font-weight: 500; color: #666; margin-left: 10px;">(' . $difficultyCount . ' difficulties)</span>';
+                                            }
+                                            ?>
+                                        </td>
+                                    </tr>
+                                <?php endif; ?>
                                 <tr>
-                                    <td><?php echo date('M j, Y', strtotime($p['puzzle_date'])); ?></td>
+                                    <td style="padding-left: 30px;"><?php echo date('M j, Y', strtotime($p['puzzle_date'])); ?></td>
                                     <td><?php echo htmlspecialchars($p['title']); ?></td>
                                     <td><span class="badge badge-<?php echo $p['difficulty']; ?>"><?php echo ucfirst($p['difficulty']); ?></span></td>
                                     <td><?php echo htmlspecialchars($p['theme']); ?></td>

@@ -114,3 +114,4 @@ Before going live, test:
 - Admin panel is protected by simple password authentication
 - Development mode allows puzzle selection and reset features
 
+

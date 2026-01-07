@@ -9,14 +9,47 @@ $session = new Session();
 $puzzle = new Puzzle();
 $game = new Game($session->getSessionId());
 
-// DEV MODE: Allow puzzle selection via URL parameter
+// Get user rank and progress
+$rankProgress = $game->getRankProgress();
+$ranksTableMissing = isset($rankProgress['table_missing']) && $rankProgress['table_missing'];
+
+// Get selected difficulty from URL parameter (default to 'medium' if not specified)
+$selectedDifficulty = isset($_GET['difficulty']) && in_array($_GET['difficulty'], ['easy', 'medium', 'hard']) 
+    ? $_GET['difficulty'] 
+    : 'medium';
+
+// Initialize variables
+$todaysPuzzles = [];
 $selectedPuzzleId = null;
+
+// DEV MODE: Allow puzzle selection via URL parameter
 if (EnvLoader::get('APP_ENV') === 'development' && isset($_GET['puzzle_id'])) {
     $selectedPuzzleId = (int)$_GET['puzzle_id'];
     $todaysPuzzle = $puzzle->getPuzzleById($selectedPuzzleId);
+    $selectedDifficulty = $todaysPuzzle['difficulty']; // Use puzzle's actual difficulty
 } else {
-    // Get today's puzzle
-    $todaysPuzzle = $puzzle->getTodaysPuzzle();
+    // Get all puzzles for today
+    $todaysPuzzles = $puzzle->getTodaysPuzzles();
+    
+    // If no puzzles available for today, show error
+    if (empty($todaysPuzzles)) {
+        $todaysPuzzle = null;
+    } else {
+        // Find the selected difficulty puzzle
+        $todaysPuzzle = null;
+        foreach ($todaysPuzzles as $p) {
+            if ($p['difficulty'] === $selectedDifficulty) {
+                $todaysPuzzle = $p;
+                break;
+            }
+        }
+        
+        // If selected difficulty not available, default to first available
+        if (!$todaysPuzzle && !empty($todaysPuzzles)) {
+            $todaysPuzzle = $todaysPuzzles[0];
+            $selectedDifficulty = $todaysPuzzle['difficulty'];
+        }
+    }
 }
 
 if (!$todaysPuzzle) {
@@ -74,25 +107,106 @@ if (EnvLoader::get('APP_ENV') === 'development') {
 <body>
     <div class="container">
         <header class="header">
-            <h1><?php echo APP_NAME; ?></h1>
-            <p class="tagline">Solve the daily mystery</p>
+            <div class="header-top">
+                <div class="header-left">
+                    <h1><?php echo APP_NAME; ?></h1>
+                    <p class="tagline">Solve the daily mystery</p>
+                </div>
+                <?php if (!$ranksTableMissing): ?>
+                <div class="detective-rank rank-level-<?php echo $rankProgress['current_level']; ?>">
+                    <div class="rank-badge">
+                        <div class="rank-icon">🔍</div>
+                        <div class="rank-info">
+                            <div class="rank-name"><?php echo htmlspecialchars($rankProgress['current_rank']); ?></div>
+                            <?php if (!isset($rankProgress['max_rank']) || !$rankProgress['max_rank']): ?>
+                                <div class="rank-progress">
+                                    <div class="rank-progress-bar">
+                                        <div class="rank-progress-fill" style="width: <?php echo $rankProgress['percentage']; ?>%"></div>
+                                    </div>
+                                    <div class="rank-progress-text">
+                                        <?php echo $rankProgress['progress']; ?> / <?php echo $rankProgress['needed']; ?> → <?php echo htmlspecialchars($rankProgress['next_rank']); ?>
+                                    </div>
+                                </div>
+                            <?php else: ?>
+                                <div class="rank-max">⭐ MAX RANK ACHIEVED ⭐</div>
+                            <?php endif; ?>
+                            <div class="rank-stats">
+                                <span class="stat-item">🏆 <?php echo $rankProgress['stats']['total_completions']; ?> cases</span>
+                                <span class="stat-item">🔥 <?php echo $rankProgress['stats']['current_streak']; ?> day streak</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <?php else: ?>
+                <div class="rank-setup-notice">
+                    <div style="background: #fff3cd; border: 2px solid #ffc107; padding: 10px 15px; border-radius: 4px; font-size: 12px; color: #856404; max-width: 300px;">
+                        <strong>⚠️ Rank System Setup Needed:</strong><br>
+                        Run <code>database/add-ranks-table.sql</code> to enable detective ranks
+                    </div>
+                </div>
+                <?php endif; ?>
+            </div>
         </header>
 
         <?php if (EnvLoader::get('APP_ENV') === 'development' && !empty($allPuzzles)): ?>
         <!-- DEV MODE: Puzzle Selector -->
         <div class="dev-selector">
-            <form method="GET" style="display: flex; gap: 10px; align-items: center;">
+            <form method="GET" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
                 <label for="puzzle_select" style="color: #d4af37; font-weight: 600;">DEV MODE - Select Puzzle:</label>
                 <select name="puzzle_id" id="puzzle_select" onchange="this.form.submit()" style="padding: 8px 12px; background: rgba(0,0,0,0.5); color: #e8e8e8; border: 1px solid #d4af37; border-radius: 4px; font-size: 14px;">
                     <?php foreach ($allPuzzles as $p): ?>
                         <option value="<?php echo $p['id']; ?>" <?php echo ($p['id'] == $puzzleId) ? 'selected' : ''; ?>>
-                            <?php echo date('M j, Y', strtotime($p['puzzle_date'])); ?> - <?php echo htmlspecialchars($p['title']); ?>
+                            <?php echo date('M j, Y', strtotime($p['puzzle_date'])); ?> - <?php echo ucfirst($p['difficulty']); ?> - <?php echo htmlspecialchars($p['title']); ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
                 <a href="?" style="padding: 8px 16px; background: rgba(212,175,55,0.2); color: #d4af37; text-decoration: none; border-radius: 4px; border: 1px solid #d4af37; font-size: 13px;">Reset to Today</a>
                 <a href="admin/" style="padding: 8px 16px; background: rgba(212,175,55,0.2); color: #d4af37; text-decoration: none; border-radius: 4px; border: 1px solid #d4af37; font-size: 13px;">Admin Panel</a>
             </form>
+        </div>
+        <?php endif; ?>
+
+        <?php 
+        // Show difficulty selector if multiple puzzles available for today
+        if (!isset($selectedPuzzleId) && isset($todaysPuzzles) && count($todaysPuzzles) > 1): 
+            // Check which puzzles are completed
+            $completedPuzzles = [];
+            foreach ($todaysPuzzles as $p) {
+                $completionCheck = $game->getCompletion($p['id']);
+                $completedPuzzles[$p['difficulty']] = $completionCheck ? true : false;
+            }
+        ?>
+        <!-- Difficulty Selector -->
+        <div class="difficulty-selector">
+            <div class="difficulty-selector-label">Choose Difficulty:</div>
+            <div class="difficulty-tabs">
+                <?php 
+                $difficulties = ['easy', 'medium', 'hard'];
+                foreach ($difficulties as $diff): 
+                    $puzzleExists = false;
+                    foreach ($todaysPuzzles as $p) {
+                        if ($p['difficulty'] === $diff) {
+                            $puzzleExists = true;
+                            $puzzleForDiff = $p;
+                            break;
+                        }
+                    }
+                    
+                    if (!$puzzleExists) continue;
+                    
+                    $isActive = ($selectedDifficulty === $diff);
+                    $isCompleted = isset($completedPuzzles[$diff]) && $completedPuzzles[$diff];
+                    $diffLabel = ucfirst($diff);
+                ?>
+                    <a href="?difficulty=<?php echo $diff; ?>" 
+                       class="difficulty-tab difficulty-tab-<?php echo $diff; ?> <?php echo $isActive ? 'active' : ''; ?> <?php echo $isCompleted ? 'completed' : ''; ?>">
+                        <span class="difficulty-tab-label"><?php echo $diffLabel; ?></span>
+                        <?php if ($isCompleted): ?>
+                            <span class="difficulty-tab-checkmark">✓</span>
+                        <?php endif; ?>
+                    </a>
+                <?php endforeach; ?>
+            </div>
         </div>
         <?php endif; ?>
 
@@ -181,7 +295,10 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                         <div class="case-summary">
                             <p><?php echo nl2br(htmlspecialchars($todaysPuzzle['case_summary'])); ?></p>
                         </div>
-                        <button class="btn continue-btn" onclick="showNextSection()">Continue to Report →</button>
+                        <div class="section-navigation">
+                            <button class="btn btn-back" style="visibility: hidden;">← Back</button>
+                            <button class="btn continue-btn" onclick="showNextSection()">Continue to Report →</button>
+                        </div>
                     </div>
 
                     <?php
@@ -196,13 +313,22 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                         if ($trimmed === '') continue;
                         
                         // Check if section starts with ** (title)
-                        if (preg_match('/^\*\*(.*?)\*\*/', $trimmed, $titleMatch)) {
-                            $title = $titleMatch[1];
-                            $content = preg_replace('/^\*\*(.*?)\*\*\s*/', '', $trimmed);
+                        if (preg_match('/^\*\*(.*?)\*\*\s*:?\s*/', $trimmed, $titleMatch)) {
+                            $title = trim($titleMatch[1]);
+                            // Remove the title and any trailing colon/whitespace
+                            $content = preg_replace('/^\*\*(.*?)\*\*\s*:?\s*/', '', $trimmed);
+                            $content = trim($content);
+                            // Remove leading colon if it exists
+                            $content = preg_replace('/^:\s*/', '', $content);
                         } else {
                             $title = '';
                             $content = $trimmed;
+                            // Remove leading colon if it exists
+                            $content = preg_replace('/^:\s*/', '', $content);
                         }
+                        
+                        // Clean up any remaining leading punctuation issues
+                        $content = trim($content);
                         
                         $sections[] = ['title' => $title, 'content' => $content];
                     endforeach;
@@ -222,9 +348,14 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                                 <?php endif; ?>
                                 <div class="report-section-content"><?php echo $formattedContent; ?></div>
                             </div>
-                            <button class="btn continue-btn" onclick="showNextSection()">
-                                <?php echo ($sectionIndex < $totalReportSections) ? 'Continue →' : 'View Questions →'; ?>
-                            </button>
+                            <div class="section-navigation">
+                                <button class="btn btn-back" onclick="showPreviousSection()" <?php echo ($sectionIndex === 1) ? 'style="visibility: hidden;"' : ''; ?>>
+                                    ← Back
+                                </button>
+                                <button class="btn continue-btn" onclick="showNextSection()">
+                                    <?php echo ($sectionIndex < $totalReportSections) ? 'Continue →' : 'View Questions →'; ?>
+                                </button>
+                            </div>
                         </div>
                     <?php
                         $sectionIndex++;
@@ -234,12 +365,17 @@ if (EnvLoader::get('APP_ENV') === 'development') {
 
                 <!-- Questions Section (hidden initially) -->
                 <div class="questions-section" id="questions-section">
-                    <button class="btn btn-secondary view-all-btn" onclick="toggleModal()">
-                        <svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 16H5V5h2v3h10V5h2v14z"/>
-                        </svg>
-                        See All Information Again
-                    </button>
+                    <div class="questions-header">
+                        <button class="btn btn-back" onclick="showPreviousSection()">
+                            ← Back to Report
+                        </button>
+                        <button class="btn btn-secondary view-all-btn" onclick="toggleModal()">
+                            <svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 16H5V5h2v3h10V5h2v14z"/>
+                            </svg>
+                            See All Information Again
+                        </button>
+                    </div>
                     
                     <div class="task">
                         <h3>Find the ONE detail that doesn't fit</h3>
@@ -294,13 +430,22 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                                 if ($trimmed === '') continue;
                                 
                                 // Check if section starts with ** (title)
-                                if (preg_match('/^\*\*(.*?)\*\*/', $trimmed, $titleMatch)) {
-                                    $title = $titleMatch[1];
-                                    $content = preg_replace('/^\*\*(.*?)\*\*\s*/', '', $trimmed);
+                                if (preg_match('/^\*\*(.*?)\*\*\s*:?\s*/', $trimmed, $titleMatch)) {
+                                    $title = trim($titleMatch[1]);
+                                    // Remove the title and any trailing colon/whitespace
+                                    $content = preg_replace('/^\*\*(.*?)\*\*\s*:?\s*/', '', $trimmed);
+                                    $content = trim($content);
+                                    // Remove leading colon if it exists
+                                    $content = preg_replace('/^:\s*/', '', $content);
                                 } else {
                                     $title = '';
                                     $content = $trimmed;
+                                    // Remove leading colon if it exists
+                                    $content = preg_replace('/^:\s*/', '', $content);
                                 }
+                                
+                                // Clean up any remaining leading punctuation issues
+                                $content = trim($content);
                                 
                                 $formattedContent = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $content);
                                 $formattedContent = nl2br($formattedContent);
@@ -342,6 +487,8 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                 const nextSectionEl = document.querySelector(`.info-section[data-section="${currentSection}"]`);
                 if (nextSectionEl) {
                     nextSectionEl.classList.add('active');
+                    // Update back button visibility
+                    updateNavigationButtons();
                     // Scroll to top of section
                     nextSectionEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }
@@ -350,6 +497,47 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                 document.getElementById('questions-section').classList.add('active');
                 document.getElementById('questions-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
+        }
+
+        function showPreviousSection() {
+            // Hide questions section if we're going back from it
+            const questionsSection = document.getElementById('questions-section');
+            if (questionsSection && questionsSection.classList.contains('active')) {
+                questionsSection.classList.remove('active');
+                // Set currentSection to the last info section
+                currentSection = totalSections - 1;
+            }
+            
+            const currentSectionEl = document.querySelector(`.info-section[data-section="${currentSection}"]`);
+            if (currentSectionEl) {
+                currentSectionEl.classList.remove('active');
+            }
+            
+            if (currentSection > 0) {
+                currentSection--;
+                const prevSectionEl = document.querySelector(`.info-section[data-section="${currentSection}"]`);
+                if (prevSectionEl) {
+                    prevSectionEl.classList.add('active');
+                    // Update back button visibility
+                    updateNavigationButtons();
+                    // Scroll to top of section
+                    prevSectionEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }
+        }
+
+        function updateNavigationButtons() {
+            // Update back button visibility for all sections
+            document.querySelectorAll('.info-section').forEach((section, index) => {
+                const backBtn = section.querySelector('.btn-back');
+                if (backBtn) {
+                    if (index === 0) {
+                        backBtn.style.visibility = 'hidden';
+                    } else {
+                        backBtn.style.visibility = 'visible';
+                    }
+                }
+            });
         }
 
         // Modal functions
