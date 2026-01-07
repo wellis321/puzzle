@@ -449,6 +449,9 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                         <?php endif; ?>
                     </div>
 
+                    <!-- Feedback appears here, right after statements for maximum visibility -->
+                    <div id="feedback" class="feedback"></div>
+
                     <?php if ($attemptCount > 0): ?>
                         <div class="hints-section">
                             <h3>Hints</h3>
@@ -807,6 +810,13 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                 feedback.style.transition = 'all 0.3s ease-out';
                 feedback.style.opacity = '1';
                 feedback.style.transform = 'translateY(0)';
+                
+                // Scroll feedback into view so user sees it immediately
+                feedback.scrollIntoView({ 
+                    behavior: 'smooth', 
+                    block: 'center',
+                    inline: 'nearest'
+                });
             }, 10);
         }
 

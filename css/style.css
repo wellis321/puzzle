@@ -734,10 +734,10 @@ body::before {
 
 .feedback {
     display: none;
-    padding: 20px 25px;
+    padding: 25px 30px;
     font-weight: 700;
     text-align: center;
-    margin-top: 25px;
+    margin-top: 20px;
     margin-bottom: 25px;
     border: 3px solid;
     font-size: 20px;
@@ -746,6 +746,8 @@ body::before {
     letter-spacing: 1px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     animation: slideDown 0.3s ease-out;
+    position: relative;
+    z-index: 10;
 }
 
 .feedback-loading {
@@ -768,6 +770,19 @@ body::before {
     color: #c62828;
     border-color: #c62828;
     text-transform: none;
+    font-size: 22px;
+    box-shadow: 0 6px 20px rgba(198, 40, 40, 0.3);
+    animation: slideDown 0.3s ease-out, pulseError 0.8s ease-in-out 2;
+}
+
+@keyframes pulseError {
+    0%, 100% {
+        box-shadow: 0 6px 20px rgba(198, 40, 40, 0.3);
+    }
+    50% {
+        box-shadow: 0 8px 30px rgba(198, 40, 40, 0.5);
+        transform: scale(1.01);
+    }
 }
 
 @keyframes slideDown {
