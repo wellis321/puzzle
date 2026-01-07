@@ -39,10 +39,11 @@ class AIPuzzleGenerator {
     private function setBaseUrl() {
         switch ($this->provider) {
             case 'gemini':
-                // Use gemini-1.5-flash (fast and free, recommended)
-                // Alternative: gemini-1.5-pro for more complex tasks
-                $this->model = 'gemini-1.5-flash';
-                $this->baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models/' . $this->model . ':generateContent';
+                // Try different model names - start with latest
+                // Available models: gemini-pro, gemini-1.5-flash, gemini-1.5-pro
+                // Use v1 instead of v1beta for newer models
+                $this->model = 'gemini-1.5-flash-latest';
+                $this->baseUrl = 'https://generativelanguage.googleapis.com/v1/models/' . $this->model . ':generateContent';
                 break;
             case 'groq':
                 $this->baseUrl = 'https://api.groq.com/openai/v1/chat/completions';
@@ -116,41 +117,53 @@ Make sure exactly ONE statement has \"is_correct\": true. Make it challenging bu
     }
 
     private function callGemini($prompt) {
-        $url = $this->baseUrl . '?key=' . $this->apiKey;
+        // Try different model/version combinations
+        $modelsToTry = [
+            'gemini-1.5-flash-latest' => 'v1',
+            'gemini-1.5-flash' => 'v1',
+            'gemini-1.5-pro' => 'v1',
+            'gemini-pro' => 'v1beta'
+        ];
         
-        $data = [
-            'contents' => [
-                [
-                    'parts' => [
-                        ['text' => $prompt]
+        $lastError = null;
+        
+        foreach ($modelsToTry as $model => $version) {
+            $url = "https://generativelanguage.googleapis.com/{$version}/models/{$model}:generateContent?key=" . $this->apiKey;
+            
+            $data = [
+                'contents' => [
+                    [
+                        'parts' => [
+                            ['text' => $prompt]
+                        ]
                     ]
                 ]
-            ]
-        ];
+            ];
 
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/json'
-        ]);
+            $ch = curl_init($url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Content-Type: application/json'
+            ]);
 
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
 
-        if ($httpCode !== 200) {
-            throw new Exception("Gemini API error (HTTP {$httpCode}): " . $response);
+            if ($httpCode === 200) {
+                $result = json_decode($response, true);
+                
+                if (isset($result['candidates'][0]['content']['parts'][0]['text'])) {
+                    return $result['candidates'][0]['content']['parts'][0]['text'];
+                }
+            } else {
+                $lastError = "Model {$model} (HTTP {$httpCode}): " . $response;
+            }
         }
-
-        $result = json_decode($response, true);
         
-        if (!isset($result['candidates'][0]['content']['parts'][0]['text'])) {
-            throw new Exception("Unexpected Gemini response format");
-        }
-
-        return $result['candidates'][0]['content']['parts'][0]['text'];
+        throw new Exception("All Gemini models failed. Last error: " . $lastError);
     }
 
     private function callOpenAICompatible($prompt) {
