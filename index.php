@@ -214,13 +214,10 @@ if (EnvLoader::get('APP_ENV') === 'development') {
             <?php if ($completion): ?>
                 <!-- Completed State -->
                 <div id="completion-top" class="completion-screen <?php echo $completion['solved'] ? 'completion-solved' : 'completion-failed'; ?>">
-                    <div class="case-file-header" style="text-align: left; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid rgba(139, 69, 19, 0.2);">
-                        <div style="font-size: 14px; color: #666; text-transform: uppercase; letter-spacing: 2px; font-family: 'Courier New', 'Courier', monospace; margin-bottom: 5px;">
-                            Case File #<?php echo $puzzleId; ?>
-                        </div>
-                        <div style="font-size: 16px; color: #8b4513; font-weight: 600;">
+                    <div class="puzzle-title-header" style="text-align: center; margin-bottom: 25px; padding-bottom: 20px; border-bottom: 2px solid rgba(139, 69, 19, 0.2);">
+                        <h2 style="font-size: 28px; color: #8b4513; font-weight: 700; margin: 0; font-family: 'Courier New', 'Courier', monospace;">
                             <?php echo htmlspecialchars($todaysPuzzle['title']); ?>
-                        </div>
+                        </h2>
                     </div>
                     
                     <?php if ($completion['solved']): ?>
@@ -259,8 +256,11 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                     $solution = $puzzle->getSolution($puzzleId);
                     if ($solution):
                     ?>
-                        <div class="solution">
-                            <h3>The Solution</h3>
+                        <!-- Solution Explanation - Always shown after solving -->
+                        <div class="solution-explanation" style="margin-top: 40px; padding: 30px; background: #e8f5e9; border: 3px solid #2e7d32; border-radius: 8px; box-shadow: 0 4px 12px rgba(46, 125, 50, 0.2);">
+                            <h3 style="color: #2e7d32; font-size: 24px; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 2px; font-family: 'Courier New', 'Courier', monospace; font-weight: 700;">
+                                ✅ Why Your Answer is Correct
+                            </h3>
                             
                             <?php if (!empty($solution['image_path'])): ?>
                                 <?php
@@ -268,7 +268,7 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                                 $imageFullPath = __DIR__ . '/' . $solution['image_path'];
                                 $imageExists = file_exists($imageFullPath);
                                 ?>
-                                <div class="solution-image-container">
+                                <div class="solution-image-container" style="margin-bottom: 25px;">
                                     <?php if ($imageExists): ?>
                                         <img src="<?php echo htmlspecialchars($solution['image_path']); ?>" 
                                              alt="Solution illustration" 
@@ -287,14 +287,18 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                                 </div>
                             <?php endif; ?>
                             
-                            <p><strong>Why it doesn't fit:</strong></p>
-                            <p><?php echo nl2br(htmlspecialchars($solution['explanation'])); ?></p>
+                            <div style="background: #fff; padding: 20px; border-radius: 6px; margin-bottom: 15px;">
+                                <p style="font-size: 18px; color: #1b5e20; line-height: 1.8; margin: 0;">
+                                    <strong style="color: #2e7d32;">Why it doesn't fit:</strong><br>
+                                    <?php echo nl2br(htmlspecialchars($solution['explanation'])); ?>
+                                </p>
+                            </div>
 
                             <?php if (!empty($solution['detailed_reasoning'])): ?>
-                            <details style="margin-top: 20px;">
-                                <summary style="cursor: pointer; font-weight: bold;">Show detailed reasoning</summary>
-                                <div style="margin-top: 10px;">
-                                    <p><?php echo nl2br(htmlspecialchars($solution['detailed_reasoning'])); ?></p>
+                            <details style="margin-top: 15px; background: #fff; padding: 15px; border-radius: 6px;">
+                                <summary style="cursor: pointer; font-weight: bold; color: #2e7d32; font-size: 16px;">📖 Show detailed reasoning</summary>
+                                <div style="margin-top: 15px; padding-top: 15px; border-top: 2px solid #e8f5e9;">
+                                    <p style="color: #1b5e20; line-height: 1.8;"><?php echo nl2br(htmlspecialchars($solution['detailed_reasoning'])); ?></p>
                                 </div>
                             </details>
                             <?php endif; ?>
