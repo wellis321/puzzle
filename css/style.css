@@ -851,12 +851,16 @@ body::before {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 40px;
-    height: 40px;
+    width: 50px;
+    height: 50px;
     border: 3px solid;
     font-weight: 700;
-    font-size: 24px;
+    font-size: 32px;
     font-family: 'Courier New', 'Courier', monospace;
+    border-radius: 4px;
+    flex-shrink: 0;
+    line-height: 1;
+    padding: 0;
 }
 
 .attempt-correct {
@@ -1489,9 +1493,9 @@ body::before {
     }
 
     .attempt-icon {
-        width: 36px;
-        height: 36px;
-        font-size: 18px;
+        width: 45px;
+        height: 45px;
+        font-size: 28px;
     }
 
     .countdown {

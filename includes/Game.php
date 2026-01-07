@@ -479,6 +479,10 @@ class Game {
             ];
         }
         
+        // Recalculate rank to ensure it's up to date
+        // This ensures stats are current even if updateUserRank hasn't run yet
+        $this->updateUserRank();
+        
         $rank = $this->getUserRank();
         
         // If getUserRank returns null but table exists, create default rank data
