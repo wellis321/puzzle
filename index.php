@@ -423,34 +423,122 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                             $attemptedStatements[$attempt['statement_id']] = $attempt['is_correct'];
                         }
                         
+                        // Find the correct statement ID
+                        $correctStatementId = null;
+                        foreach ($statements as $stmt) {
+                            if ($stmt['is_correct_answer'] == 1) {
+                                $correctStatementId = $stmt['id'];
+                                break;
+                            }
+                        }
+                        
                         foreach ($statements as $stmt): 
                             $wasAttempted = isset($attemptedStatements[$stmt['id']]);
                             $wasCorrect = $wasAttempted && $attemptedStatements[$stmt['id']];
                             $wasWrong = $wasAttempted && !$attemptedStatements[$stmt['id']];
+                            $isCorrectAnswer = ($stmt['is_correct_answer'] == 1);
                         ?>
-                            <button class="statement-btn <?php echo $wasCorrect ? 'correct' : ($wasWrong ? 'wrong' : ''); ?>" 
+                            <button class="statement-btn <?php echo $wasCorrect ? 'correct' : ($wasWrong ? 'wrong' : ''); ?> <?php echo ($attemptCount >= 3 && $isCorrectAnswer) ? 'revealed-correct' : ''; ?>" 
                                     data-statement-id="<?php echo $stmt['id']; ?>"
+                                    data-is-correct="<?php echo $isCorrectAnswer ? '1' : '0'; ?>"
                                     <?php if ($attemptCount >= 3 || $wasCorrect): ?>disabled<?php endif; ?>>
                                 <span class="statement-number"><?php echo $stmt['statement_order']; ?></span>
                                 <span class="statement-text"><?php echo htmlspecialchars($stmt['statement_text']); ?></span>
                             </button>
                         <?php endforeach; ?>
-                        
-                        <?php if ($attemptCount >= 3): ?>
-                            <div class="feedback feedback-error" style="display: block; margin-top: 20px;">
-                                ⚠️ Out of attempts! Scroll down to see the solution or <a href="?puzzle_id=<?php echo $puzzleId; ?>&reset=1" style="color: #c62828; text-decoration: underline;">reset this puzzle</a>.
-                            </div>
-                            <script>
-                                // Auto-scroll to solution after a moment
-                                setTimeout(function() {
-                                    const solutionEl = document.querySelector('.solution');
-                                    if (solutionEl) {
-                                        solutionEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                                    }
-                                }, 1000);
-                            </script>
-                        <?php endif; ?>
                     </div>
+                    
+                    <?php if ($attemptCount >= 3 && !$completion['solved']): 
+                        // Randomized encouraging messages
+                        $encouragingMessages = [
+                            "Not quite! Even the best detectives have off days.",
+                            "You didn't crack this one, but every detective has bad days.",
+                            "No worries - even Sherlock had his moments!",
+                            "You've got it wrong this time, but all great detectives learn from their mistakes.",
+                            "Don't worry - even the finest detectives miss clues sometimes.",
+                            "This case got away, but even detectives like Columbo had tough days.",
+                            "You missed this one, but remember - every detective learns from failure.",
+                            "Not your day, detective! But even the best have off days."
+                        ];
+                        $randomMessage = $encouragingMessages[array_rand($encouragingMessages)];
+                    ?>
+                        <div id="attempts-exhausted-prompt" class="attempts-exhausted-prompt" style="display: block; margin-top: 30px;">
+                            <div class="feedback feedback-error">
+                                <?php echo htmlspecialchars($randomMessage); ?>
+                            </div>
+                            <div class="reveal-answer-prompt" style="margin-top: 20px; padding: 20px; background: #fff3cd; border: 2px solid #ffc107; border-radius: 8px; text-align: center;">
+                                <p style="font-size: 18px; margin-bottom: 20px; color: #856404; font-weight: 600;">Would you like to see the correct answer?</p>
+                                <div style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
+                                    <button onclick="revealCorrectAnswer()" class="btn" style="background: #28a745; color: white; padding: 12px 30px; font-size: 16px; font-weight: 600;">
+                                        Yes, show me
+                                    </button>
+                                    <button onclick="skipReveal()" class="btn" style="background: #6c757d; color: white; padding: 12px 30px; font-size: 16px;">
+                                        No thanks
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div id="solution-link-container" style="display: none; margin-top: 25px; text-align: center;">
+                            <a href="#solution-section" onclick="revealSolution()" class="btn" style="background: #8b4513; color: white; padding: 15px 35px; font-size: 18px; font-weight: 600; text-decoration: none; display: inline-block;">
+                                🔍 View Full Solution
+                            </a>
+                        </div>
+                        
+                        <script>
+                            const correctStatementId = <?php echo $correctStatementId ?: 'null'; ?>;
+                            let answerRevealed = false;
+                            
+                            function revealCorrectAnswer() {
+                                if (answerRevealed) return;
+                                answerRevealed = true;
+                                
+                                // Find and highlight the correct statement
+                                if (correctStatementId) {
+                                    const correctBtn = document.querySelector(`[data-statement-id="${correctStatementId}"]`);
+                                    if (correctBtn) {
+                                        correctBtn.classList.add('correct', 'revealed-correct');
+                                        correctBtn.classList.remove('wrong');
+                                        correctBtn.disabled = true;
+                                        
+                                        // Scroll to the correct answer with a smooth animation
+                                        setTimeout(() => {
+                                            correctBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                        }, 100);
+                                        
+                                        // Add a pulse animation temporarily
+                                        correctBtn.style.animation = 'pulse 0.6s ease-in-out 2';
+                                    }
+                                }
+                                
+                                // Hide the prompt
+                                document.getElementById('attempts-exhausted-prompt').style.display = 'none';
+                                
+                                // Show the solution link button
+                                document.getElementById('solution-link-container').style.display = 'block';
+                                
+                                // Scroll to solution link after a moment
+                                setTimeout(() => {
+                                    document.getElementById('solution-link-container').scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                }, 800);
+                            }
+                            
+                            function skipReveal() {
+                                document.getElementById('attempts-exhausted-prompt').style.display = 'none';
+                                document.getElementById('solution-link-container').style.display = 'block';
+                                setTimeout(() => {
+                                    document.getElementById('solution-link-container').scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                }, 100);
+                            }
+                            
+                            function revealSolution() {
+                                const solutionEl = document.getElementById('solution-section');
+                                if (solutionEl) {
+                                    solutionEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                }
+                            }
+                        </script>
+                    <?php endif; ?>
 
                     <!-- Feedback appears here, right after statements for maximum visibility -->
                     <div id="feedback" class="feedback"></div>
@@ -475,7 +563,7 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                         $solution = $puzzle->getSolution($puzzleId);
                         if ($solution):
                         ?>
-                            <div class="solution" style="margin-top: 30px;">
+                            <div id="solution-section" class="solution" style="margin-top: 30px;">
                                 <h3>The Solution</h3>
                                 
                                 <?php if (!empty($solution['image_path'])): ?>
@@ -757,18 +845,10 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                                     }, 3000);
                                 }, 2000);
                             } else {
-                                showFeedback('❌ Out of attempts. Scroll down to see the solution.', 'error');
-                                
-                                // Show solution after delay
+                                // Out of attempts - reload to show the new prompt
                                 setTimeout(() => {
-                                    const solutionEl = document.querySelector('.solution');
-                                    if (solutionEl) {
-                                        solutionEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                                    }
-                                    setTimeout(() => {
-                                        window.location.reload();
-                                    }, 3000);
-                                }, 2000);
+                                    window.location.reload();
+                                }, 1500);
                             }
                         }
                     } else {
