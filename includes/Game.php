@@ -183,19 +183,33 @@ class Game {
      */
     public function getUserRank() {
         try {
+            // First, check if table exists by attempting a simple query
+            $testStmt = $this->db->query("SELECT 1 FROM user_ranks LIMIT 1");
+        } catch (PDOException $e) {
+            // Table doesn't exist - return null
+            return null;
+        }
+        
+        try {
             $stmt = $this->db->prepare("SELECT * FROM user_ranks WHERE session_id = ?");
             $stmt->execute([$this->sessionId]);
             $rank = $stmt->fetch();
             
             if (!$rank) {
                 // Create initial rank record
+                // Use INSERT IGNORE to avoid foreign key issues if session doesn't exist yet
                 $stmt = $this->db->prepare("
-                    INSERT INTO user_ranks (session_id, rank_name, rank_level)
+                    INSERT IGNORE INTO user_ranks (session_id, rank_name, rank_level)
                     VALUES (?, 'Novice Detective', 1)
                 ");
-                $stmt->execute([$this->sessionId]);
+                try {
+                    $stmt->execute([$this->sessionId]);
+                } catch (PDOException $e) {
+                    // If insert fails (e.g., foreign key constraint), just continue
+                    // The rank will be created on next update
+                }
                 
-                // Fetch the newly created record
+                // Fetch the newly created record (or null if insert failed)
                 $stmt = $this->db->prepare("SELECT * FROM user_ranks WHERE session_id = ?");
                 $stmt->execute([$this->sessionId]);
                 $rank = $stmt->fetch();
@@ -203,8 +217,7 @@ class Game {
             
             return $rank;
         } catch (PDOException $e) {
-            // Table doesn't exist yet - return null to indicate ranks not set up
-            // User needs to run the migration: database/add-ranks-table.sql
+            // Unexpected error, but table exists - return null anyway
             return null;
         }
     }
