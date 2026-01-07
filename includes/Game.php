@@ -361,14 +361,14 @@ class Game {
     }
 
     /**
-     * Calculate user's current streak
+     * Calculate user's current winning streak (only counts SOLVED cases)
      */
     private function calculateStreak() {
-        // Get distinct dates with completions, ordered by date descending
+        // Get distinct dates with SOLVED completions only, ordered by date descending
         $stmt = $this->db->prepare("
             SELECT DISTINCT DATE(c.completed_at) as completion_date
             FROM completions c
-            WHERE c.session_id = ?
+            WHERE c.session_id = ? AND c.solved = 1
             ORDER BY completion_date DESC
         ");
         $stmt->execute([$this->sessionId]);
@@ -378,7 +378,7 @@ class Game {
             return ['current' => 0];
         }
         
-        // Check if there was activity today or yesterday
+        // Check if there was a win today or yesterday
         $today = date('Y-m-d');
         $yesterday = date('Y-m-d', strtotime('-1 day'));
         
@@ -395,7 +395,7 @@ class Game {
                     $expectedDate = $completionDate === $today ? $yesterday : date('Y-m-d', strtotime($completionDate . ' -1 day'));
                     continue;
                 } else {
-                    break; // No recent activity, streak is 0
+                    break; // No recent wins, streak is 0
                 }
             }
             
@@ -412,33 +412,33 @@ class Game {
     }
 
     /**
-     * Calculate rank based on statistics
+     * Calculate rank based on statistics (based on WINS, not just completions)
      */
     private function calculateRank($stats, $streak) {
-        $totalCompletions = $stats['total_completions'];
+        $solvedCount = $stats['solved_count']; // Use wins, not total completions
         $hardCompletions = $stats['hard_completions'];
         $perfectScores = $stats['perfect_scores'];
-        $solvedCount = $stats['solved_count'];
+        $totalCompletions = $stats['total_completions'];
         $solveRate = $totalCompletions > 0 ? ($solvedCount / $totalCompletions) : 0;
         
-        // Rank progression system
+        // Rank progression system - based on WINS (solved cases)
         $ranks = [
-            1 => ['name' => 'Novice Detective', 'min_completions' => 0],
-            2 => ['name' => 'Junior Detective', 'min_completions' => 3],
-            3 => ['name' => 'Detective', 'min_completions' => 10],
-            4 => ['name' => 'Senior Detective', 'min_completions' => 25],
-            5 => ['name' => 'Master Detective', 'min_completions' => 50],
-            6 => ['name' => 'Chief Inspector', 'min_completions' => 100],
-            7 => ['name' => 'Detective Inspector', 'min_completions' => 200],
-            8 => ['name' => 'Sherlock Holmes', 'min_completions' => 300],
-            9 => ['name' => 'Hercule Poirot', 'min_completions' => 400],
-            10 => ['name' => 'Columbo', 'min_completions' => 500],
+            1 => ['name' => 'Novice Detective', 'min_wins' => 0],
+            2 => ['name' => 'Junior Detective', 'min_wins' => 3],
+            3 => ['name' => 'Detective', 'min_wins' => 10],
+            4 => ['name' => 'Senior Detective', 'min_wins' => 25],
+            5 => ['name' => 'Master Detective', 'min_wins' => 50],
+            6 => ['name' => 'Chief Inspector', 'min_wins' => 100],
+            7 => ['name' => 'Detective Inspector', 'min_wins' => 200],
+            8 => ['name' => 'Sherlock Holmes', 'min_wins' => 300],
+            9 => ['name' => 'Hercule Poirot', 'min_wins' => 400],
+            10 => ['name' => 'Columbo', 'min_wins' => 500],
         ];
         
-        // Determine base level from completions
+        // Determine base level from wins (solved cases)
         $level = 1;
         foreach ($ranks as $rankLevel => $rankInfo) {
-            if ($totalCompletions >= $rankInfo['min_completions']) {
+            if ($solvedCount >= $rankInfo['min_wins']) {
                 $level = $rankLevel;
             } else {
                 break;
@@ -456,7 +456,7 @@ class Game {
             $level = min($level + 1, 10);
         }
         
-        // Long streak bonus
+        // Long winning streak bonus (only counts wins)
         if ($streak['current'] >= 30) {
             $level = min($level + 1, 10);
         }
@@ -550,7 +550,8 @@ class Game {
         $next = $currentLevel < 10 ? $rankLevels[$currentLevel + 1] : null;
         
         if ($next) {
-            $progress = $stats['total_completions'] - $current['min'];
+            // Progress based on wins (solved_count), not total completions
+            $progress = $stats['solved_count'] - $current['min'];
             $needed = $next['min'] - $current['min'];
             $percentage = min(100, round(($progress / $needed) * 100));
             
@@ -569,7 +570,7 @@ class Game {
                 'current_rank' => $current['name'],
                 'current_level' => $currentLevel,
                 'next_rank' => null,
-                'progress' => $stats['total_completions'],
+                'progress' => $stats['solved_count'],
                 'needed' => 0,
                 'percentage' => 100,
                 'stats' => $stats,

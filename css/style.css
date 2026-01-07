@@ -842,6 +842,23 @@ body::before {
 
 .completion-screen {
     text-align: center;
+    background: #fff;
+    padding: 40px;
+    border: 3px solid #8b4513;
+    border-top: 8px solid #8b4513;
+    box-shadow: 2px 2px 8px rgba(0,0,0,0.1);
+}
+
+.completion-screen.completion-solved {
+    border-color: #2e7d32;
+    border-top-color: #2e7d32;
+    background: linear-gradient(to bottom, #e8f5e9 0%, #fff 20%);
+}
+
+.completion-screen.completion-failed {
+    border-color: #c62828;
+    border-top-color: #c62828;
+    background: linear-gradient(to bottom, #ffebee 0%, #fff 20%);
 }
 
 .completion-screen h2 {

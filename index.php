@@ -124,15 +124,15 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                                         <div class="rank-progress-fill" style="width: <?php echo $rankProgress['percentage']; ?>%"></div>
                                     </div>
                                     <div class="rank-progress-text">
-                                        <?php echo $rankProgress['progress']; ?> / <?php echo $rankProgress['needed']; ?> → <?php echo htmlspecialchars($rankProgress['next_rank']); ?>
+                                        <?php echo $rankProgress['progress']; ?> wins / <?php echo $rankProgress['needed']; ?> → <?php echo htmlspecialchars($rankProgress['next_rank']); ?>
                                     </div>
                                 </div>
                             <?php else: ?>
                                 <div class="rank-max">⭐ MAX RANK ACHIEVED ⭐</div>
                             <?php endif; ?>
                             <div class="rank-stats">
-                                <span class="stat-item">🏆 <?php echo $rankProgress['stats']['total_completions']; ?> cases</span>
-                                <span class="stat-item">🔥 <?php echo $rankProgress['stats']['current_streak']; ?> day streak</span>
+                                <span class="stat-item">🏆 <?php echo $rankProgress['stats']['solved_count']; ?> wins</span>
+                                <span class="stat-item">🔥 <?php echo $rankProgress['stats']['current_streak']; ?> day win streak</span>
                             </div>
                         </div>
                     </div>
@@ -213,20 +213,26 @@ if (EnvLoader::get('APP_ENV') === 'development') {
         <main class="game-container" data-case-number="<?php echo $puzzleId; ?>">
             <?php if ($completion): ?>
                 <!-- Completed State -->
-                <div class="completion-screen">
-                    <h2><?php echo $completion['solved'] ? 'Case Solved' : 'Case Closed'; ?></h2>
+                <div class="completion-screen <?php echo $completion['solved'] ? 'completion-solved' : 'completion-failed'; ?>">
+                    <?php if ($completion['solved']): ?>
+                        <h2 style="color: #2e7d32;">✅ Case Solved!</h2>
+                    <?php else: ?>
+                        <h2 style="color: #c62828;">❌ Case Failed</h2>
+                        <p style="font-size: 18px; color: #666; margin-top: 10px;">You didn't crack this case, but every detective has off days!</p>
+                    <?php endif; ?>
 
-                    <?php
-                    $scoreText = [
-                        'perfect' => 'Perfect Deduction',
-                        'close' => 'Close Call',
-                        'lucky' => 'Lucky Guess'
-                    ];
-                    ?>
-
-                    <div class="score">
-                        <span class="score-text"><?php echo $scoreText[$completion['score']]; ?></span>
-                    </div>
+                    <?php if ($completion['solved']): ?>
+                        <?php
+                        $scoreText = [
+                            'perfect' => 'Perfect Deduction',
+                            'close' => 'Close Call',
+                            'lucky' => 'Lucky Guess'
+                        ];
+                        ?>
+                        <div class="score">
+                            <span class="score-text"><?php echo $scoreText[$completion['score']]; ?></span>
+                        </div>
+                    <?php endif; ?>
 
                     <div class="attempts-display">
                         <?php
