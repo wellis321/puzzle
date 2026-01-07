@@ -512,7 +512,7 @@ CRITICAL: Exactly ONE statement must have \"is_correct\": true - place it at a R
                 'llama-3.3-70b-versatile',
                 'llama-3.1-70b-versatile',
                 'llama-3.1-8b-instant',
-                'llama-3.2-3b-versatile',
+                // Removed 'llama-3.2-3b-versatile' - model doesn't exist
             ];
             
             // Try each model until one works
@@ -671,29 +671,52 @@ CRITICAL: Exactly ONE statement must have \"is_correct\": true - place it at a R
             throw new Exception("Could not extract JSON from AI response");
         }
         
-        // Clean control characters that can cause JSON parsing errors
-        // Remove control characters except newlines, tabs, and carriage returns
-        $jsonStr = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $jsonStr);
+        // Enhanced JSON cleaning function
+        $json_clean_string = function($str) {
+            // Remove BOM if present
+            if (substr($str, 0, 3) === "\xEF\xBB\xBF") {
+                $str = substr($str, 3);
+            }
+            
+            // Remove control characters except newlines, tabs, and carriage returns
+            $str = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $str);
+            
+            // Decode HTML entities
+            $str = html_entity_decode($str, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            
+            // Fix common encoding issues
+            $str = mb_convert_encoding($str, 'UTF-8', 'UTF-8');
+            
+            // Remove any remaining non-printable characters (keep newlines, tabs, carriage returns)
+            $str = preg_replace('/[^\x20-\x7E\x0A\x0D\x09]/u', '', $str);
+            
+            return $str;
+        };
         
-        // Also try to fix common encoding issues
-        // Remove BOM if present
-        if (substr($jsonStr, 0, 3) === "\xEF\xBB\xBF") {
-            $jsonStr = substr($jsonStr, 3);
-        }
+        // Apply cleaning
+        $jsonStr = $json_clean_string($jsonStr);
         
-        // Decode any HTML entities that might have been encoded
-        $jsonStr = html_entity_decode($jsonStr, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-
         $puzzle = json_decode($jsonStr, true);
 
         if (json_last_error() !== JSON_ERROR_NONE) {
-            // Try one more time with more aggressive cleaning
-            $jsonStr = mb_convert_encoding($jsonStr, 'UTF-8', 'UTF-8');
-            $jsonStr = preg_replace('/[^\x20-\x7E\x0A\x0D\x09]/', '', $jsonStr);
+            // Try more aggressive cleaning
+            // Remove all non-ASCII except common punctuation and newlines
+            $jsonStr = preg_replace('/[^\x20-\x7E\x0A\x0D\x09]/u', '', $jsonStr);
+            
             $puzzle = json_decode($jsonStr, true);
             
             if (json_last_error() !== JSON_ERROR_NONE) {
-                throw new Exception("Invalid JSON from AI: " . json_last_error_msg() . " (after cleaning)");
+                // Last resort: try to extract just the JSON object
+                if (preg_match('/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/s', $jsonStr, $matches)) {
+                    $jsonStr = $matches[0];
+                    $puzzle = json_decode($jsonStr, true);
+                }
+                
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    // Log the problematic JSON for debugging
+                    error_log("JSON parsing failed. Error: " . json_last_error_msg() . ". JSON length: " . strlen($jsonStr) . ". First 500 chars: " . substr($jsonStr, 0, 500));
+                    throw new Exception("Invalid JSON from AI: " . json_last_error_msg() . " (after cleaning). Response length: " . strlen($jsonStr) . " chars.");
+                }
             }
         }
 

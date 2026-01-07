@@ -194,6 +194,50 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                 <div class="header-left">
                     <h1><?php echo APP_NAME; ?></h1>
                     <p class="tagline">Solve the daily mystery</p>
+                    <?php if (!$ranksTableMissing): ?>
+                        <div class="detective-rank rank-level-<?php echo $rankProgress['current_level']; ?>">
+                            <div class="rank-badge">
+                                <div class="rank-icon">🔍</div>
+                                <div class="rank-info">
+                                    <div class="rank-name"><?php echo htmlspecialchars($rankProgress['current_rank']); ?></div>
+                                    <?php if (!isset($rankProgress['max_rank']) || !$rankProgress['max_rank']): ?>
+                                        <div class="rank-progress">
+                                            <div class="rank-progress-bar">
+                                                <div class="rank-progress-fill" style="width: <?php echo $rankProgress['percentage']; ?>%"></div>
+                                            </div>
+                                            <div class="rank-progress-text">
+                                                <?php echo $rankProgress['progress']; ?> wins / <?php echo $rankProgress['needed']; ?> → <?php echo htmlspecialchars($rankProgress['next_rank']); ?>
+                                            </div>
+                                        </div>
+                                    <?php else: ?>
+                                        <div class="rank-max">
+                                            <svg class="icon icon-lg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="margin: 0 5px;">
+                                                <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+                                            </svg>
+                                            MAX RANK ACHIEVED
+                                            <svg class="icon icon-lg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="margin: 0 5px;">
+                                                <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+                                            </svg>
+                                        </div>
+                                    <?php endif; ?>
+                                    <div class="rank-stats">
+                                        <span class="stat-item">
+                                            <svg class="icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="margin-right: 5px;">
+                                                <path d="M19 5h-2V3c0-1.1-.9-2-2-2h-2c-1.1 0-2 .9-2 2v2H9V3c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v2H1v14h18V5zm-4-2h2v2h-2V3zm0 12H7v-4h8v4zm0-6H7V7h8v2zm2 6h2v-6h-2v6zm0-8h2V7h-2v2z"/>
+                                            </svg>
+                                            <?php echo $rankProgress['stats']['solved_count']; ?> wins
+                                        </span>
+                                        <span class="stat-item">
+                                            <svg class="icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="margin-right: 5px;">
+                                                <path d="M17.83 15h1.67c.83 0 1.5-.67 1.5-1.5 0-.83-.67-1.5-1.5-1.5H17.83c.29-.36.5-.8.59-1.28.09-.49.09-1.01 0-1.5-.09-.49-.3-.93-.59-1.28H20.5c.83 0 1.5-.67 1.5-1.5 0-.83-.67-1.5-1.5-1.5h-1.67c-.98-1.18-2.39-1.89-3.92-1.89-1.53 0-2.94.71-3.92 1.89H6.5c-.83 0-1.5.67-1.5 1.5 0 .83.67 1.5 1.5 1.5h1.67c-.29.36-.5.8-.59 1.28-.09.49-.09 1.01 0 1.5.09.49.3.93.59 1.28H4.5c-.83 0-1.5.67-1.5 1.5 0 .83.67 1.5 1.5 1.5h1.67c.98 1.18 2.39 1.89 3.92 1.89 1.53 0 2.94-.71 3.92-1.89zM12 7.5c1.38 0 2.5 1.12 2.5 2.5s-1.12 2.5-2.5 2.5S9.5 11.38 9.5 10s1.12-2.5 2.5-2.5z"/>
+                                            </svg>
+                                            <?php echo $rankProgress['stats']['current_streak']; ?> day win streak
+                                        </span>
+                                    </div>
+                        </div>
+                    </div>
+                        </div>
+                    <?php endif; ?>
                 </div>
                 <div class="header-right">
                     <?php if ($auth->isLoggedIn()): ?>
@@ -218,63 +262,6 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                     <?php echo $ads->renderAdContainer('banner', $userId); ?>
                 </div>
             <?php endif; ?>
-            <?php if (!$ranksTableMissing): ?>
-                <div class="detective-rank rank-level-<?php echo $rankProgress['current_level']; ?>">
-                    <div class="rank-badge">
-                        <div class="rank-icon">🔍</div>
-                        <div class="rank-info">
-                            <div class="rank-name"><?php echo htmlspecialchars($rankProgress['current_rank']); ?></div>
-                            <?php if (!isset($rankProgress['max_rank']) || !$rankProgress['max_rank']): ?>
-                                <div class="rank-progress">
-                                    <div class="rank-progress-bar">
-                                        <div class="rank-progress-fill" style="width: <?php echo $rankProgress['percentage']; ?>%"></div>
-                                    </div>
-                                    <div class="rank-progress-text">
-                                        <?php echo $rankProgress['progress']; ?> wins / <?php echo $rankProgress['needed']; ?> → <?php echo htmlspecialchars($rankProgress['next_rank']); ?>
-                                    </div>
-                                </div>
-                            <?php else: ?>
-                                <div class="rank-max">
-                                    <svg class="icon icon-lg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="margin: 0 5px;">
-                                        <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
-                                    </svg>
-                                    MAX RANK ACHIEVED
-                                    <svg class="icon icon-lg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="margin: 0 5px;">
-                                        <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
-                                    </svg>
-                                </div>
-                            <?php endif; ?>
-                            <div class="rank-stats">
-                                <span class="stat-item">
-                                    <svg class="icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="margin-right: 5px;">
-                                        <path d="M19 5h-2V3c0-1.1-.9-2-2-2h-2c-1.1 0-2 .9-2 2v2H9V3c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v2H1v14h18V5zm-4-2h2v2h-2V3zm0 12H7v-4h8v4zm0-6H7V7h8v2zm2 6h2v-6h-2v6zm0-8h2V7h-2v2z"/>
-                                    </svg>
-                                    <?php echo $rankProgress['stats']['solved_count']; ?> wins
-                                </span>
-                                <span class="stat-item">
-                                    <svg class="icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="margin-right: 5px;">
-                                        <path d="M17.83 15h1.67c.83 0 1.5-.67 1.5-1.5 0-.83-.67-1.5-1.5-1.5H17.83c.29-.36.5-.8.59-1.28.09-.49.09-1.01 0-1.5-.09-.49-.3-.93-.59-1.28H20.5c.83 0 1.5-.67 1.5-1.5 0-.83-.67-1.5-1.5-1.5h-1.67c-.98-1.18-2.39-1.89-3.92-1.89-1.53 0-2.94.71-3.92 1.89H6.5c-.83 0-1.5.67-1.5 1.5 0 .83.67 1.5 1.5 1.5h1.67c-.29.36-.5.8-.59 1.28-.09.49-.09 1.01 0 1.5.09.49.3.93.59 1.28H4.5c-.83 0-1.5.67-1.5 1.5 0 .83.67 1.5 1.5 1.5h1.67c.98 1.18 2.39 1.89 3.92 1.89 1.53 0 2.94-.71 3.92-1.89zM12 7.5c1.38 0 2.5 1.12 2.5 2.5s-1.12 2.5-2.5 2.5S9.5 11.38 9.5 10s1.12-2.5 2.5-2.5z"/>
-                                    </svg>
-                                    <?php echo $rankProgress['stats']['current_streak']; ?> day win streak
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <?php else: ?>
-                <div class="rank-setup-notice">
-                    <div style="background: #fff3cd; border: 2px solid #ffc107; padding: 10px 15px; border-radius: 4px; font-size: 12px; color: #856404; max-width: 300px;">
-                        <strong>
-                            <svg class="icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="margin-right: 5px;">
-                                <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
-                            </svg>
-                            Rank System Setup Needed:
-                        </strong><br>
-                        Run <code>database/add-ranks-table.sql</code> to enable detective ranks
-                    </div>
-                </div>
-                <?php endif; ?>
-            </div>
         </header>
 
         <?php if (EnvLoader::get('APP_ENV') === 'development' && !empty($allPuzzles)): ?>
