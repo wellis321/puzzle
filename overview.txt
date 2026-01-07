@@ -1,0 +1,171 @@
+I have some ideas about a possible app that is interacted with like Wordle. 
+
+This app would be around the theme of solving a daily crime though. Below are my ideas so far.
+
+
+The appp should be
+
+One puzzle per day
+
+5–10 minutes max
+
+Very simple input (tap / click / select)
+
+Clear win or loss
+
+Shareable result (no spoilers)
+
+Skill-based, not trivia-based
+
+Now let’s translate that into a crime / mystery format.
+
+🔍 Concept Idea #1: Daily Case
+
+Premise:
+Each day, there is one mini crime.
+
+What the player sees
+
+Short case summary (3–4 sentences)
+
+A small set of facts (5–8 clues)
+
+A list of suspects / options
+
+The goal
+
+Answer 3–5 questions, for example:
+
+Who did it?
+
+What was the motive?
+
+What was the key mistake / clue?
+
+Mechanics
+
+Limited guesses (like Wordle)
+
+Each wrong guess removes or reveals a clue
+
+Solvable only by logic (no outside knowledge)
+
+⏱️ Playtime: 5 minutes
+
+🧠 Reward: “Aha!” moment
+
+🕵️ Concept Idea #2: The Missing Detail
+
+Premise:
+A crime report has one inconsistency.
+
+Example
+
+“The victim was found at 10:30 PM.
+The suspect says they were asleep by 10.
+The lights were on when police arrived…”
+
+One detail doesn’t fit.
+
+The goal
+
+Find the single incorrect statement
+
+Or identify which fact proves the crime
+
+Mechanics
+
+Tap/click the detail you think breaks the case
+
+3 tries max
+
+Hints unlock after mistakes
+
+⏱️ Playtime: 2–5 minutes
+
+This is very Wordle-like.
+
+🧠 Concept Idea #3: Yes / No Detective
+
+Premise:
+The player solves the case by asking limited yes/no questions.
+
+Mechanics
+
+You get 5 questions
+
+Each answer narrows the solution
+
+Final guess at the end
+
+Example questions:
+
+“Did the suspect know the victim?”
+
+“Was the crime planned?”
+
+“Was an object moved?”
+
+This feels deep but lightweight.
+
+🎯 Difficulty Balance (Very Important)
+
+To avoid “too easy” or “impossible”:
+
+Each puzzle should be solvable in ≤ 6 logical steps
+
+No red herrings unless clearly intentional
+
+Every clue must matter
+
+Test puzzles with non-gamers
+
+A good test:
+
+If someone explains the solution out loud and it sounds obvious afterward — you nailed it.
+
+🧠 Feedback & Reward Loop (Wordle-Style)
+
+After finishing:
+
+Show step-by-step reveal
+
+Show logic path
+
+Give a score like:
+
+🧠 Perfect Deduction
+
+🔍 Close Call
+
+😬 Lucky Guess
+
+Then:
+
+“Next case in 14h 22m”
+
+Shareable emoji grid (no spoilers)
+
+🚀 Why This Could Work
+
+Daily habit-forming
+
+Low cognitive load
+
+Feels smart, not stressful
+
+Appeals to true-crime fans + puzzle fans
+
+Works on mobile + web
+
+If You Want, I Can Help You:
+
+Design your first 7 daily puzzles
+
+Create a simple game loop diagram
+
+Write a sample Day 1 case
+
+Help name the game
+
+Help you keep it fair but clever

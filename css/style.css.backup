@@ -1,0 +1,390 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    min-height: 100vh;
+    color: #333;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.header {
+    text-align: center;
+    color: white;
+    padding: 40px 20px;
+}
+
+.header h1 {
+    font-size: 36px;
+    margin-bottom: 10px;
+}
+
+.tagline {
+    font-size: 16px;
+    opacity: 0.9;
+}
+
+.game-container {
+    background: white;
+    border-radius: 16px;
+    padding: 30px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    margin-bottom: 30px;
+}
+
+.puzzle-info {
+    margin-bottom: 20px;
+}
+
+.info-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.difficulty-badge {
+    display: inline-block;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.difficulty-easy {
+    background: #d4edda;
+    color: #155724;
+}
+
+.difficulty-medium {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.difficulty-hard {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.theme {
+    color: #666;
+    font-size: 14px;
+    padding: 6px 0;
+}
+
+.puzzle-info h2 {
+    font-size: 26px;
+    color: #1e3c72;
+}
+
+.case-summary {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 12px;
+    margin-bottom: 24px;
+    border-left: 4px solid #1e3c72;
+}
+
+.case-summary p {
+    line-height: 1.6;
+    color: #333;
+}
+
+.report {
+    margin-bottom: 30px;
+}
+
+.report h3 {
+    font-size: 20px;
+    margin-bottom: 16px;
+    color: #1e3c72;
+}
+
+.report-content {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 12px;
+    line-height: 1.7;
+}
+
+.report-content strong {
+    color: #1e3c72;
+}
+
+.task {
+    margin-bottom: 24px;
+}
+
+.task h3 {
+    font-size: 18px;
+    margin-bottom: 12px;
+    color: #1e3c72;
+}
+
+.attempts-remaining {
+    color: #666;
+}
+
+.attempts-remaining strong {
+    color: #e74c3c;
+    font-size: 18px;
+}
+
+.statements {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 30px;
+}
+
+.statement-btn {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 20px;
+    background: white;
+    border: 2px solid #e0e0e0;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s;
+    text-align: left;
+    font-size: 15px;
+}
+
+.statement-btn:hover:not(:disabled) {
+    border-color: #1e3c72;
+    background: #f8f9fa;
+    transform: translateX(4px);
+}
+
+.statement-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.statement-btn.correct {
+    background: #d4edda;
+    border-color: #28a745;
+}
+
+.statement-btn.wrong {
+    background: #f8d7da;
+    border-color: #dc3545;
+    opacity: 0.5;
+}
+
+.statement-number {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: #1e3c72;
+    color: white;
+    border-radius: 50%;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.statement-text {
+    flex: 1;
+    line-height: 1.5;
+}
+
+.hints-section {
+    background: #fff3cd;
+    padding: 20px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+}
+
+.hints-section h3 {
+    font-size: 18px;
+    margin-bottom: 12px;
+    color: #856404;
+}
+
+.hint {
+    background: white;
+    padding: 12px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    color: #856404;
+}
+
+.hint:last-child {
+    margin-bottom: 0;
+}
+
+.feedback {
+    display: none;
+    padding: 16px;
+    border-radius: 12px;
+    font-weight: 600;
+    text-align: center;
+    margin-top: 20px;
+}
+
+.feedback-success {
+    background: #d4edda;
+    color: #155724;
+}
+
+.feedback-error {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.completion-screen {
+    text-align: center;
+}
+
+.completion-screen h2 {
+    font-size: 32px;
+    margin-bottom: 20px;
+    color: #1e3c72;
+}
+
+.score {
+    margin-bottom: 30px;
+}
+
+.score-emoji {
+    font-size: 64px;
+    display: block;
+    margin-bottom: 12px;
+}
+
+.score-text {
+    font-size: 24px;
+    font-weight: 600;
+    color: #1e3c72;
+}
+
+.attempts-display {
+    font-size: 40px;
+    margin-bottom: 30px;
+    letter-spacing: 8px;
+}
+
+.solution {
+    background: #f8f9fa;
+    padding: 24px;
+    border-radius: 12px;
+    margin-bottom: 30px;
+    text-align: left;
+}
+
+.solution h3 {
+    font-size: 20px;
+    margin-bottom: 16px;
+    color: #1e3c72;
+}
+
+.solution p {
+    line-height: 1.7;
+    margin-bottom: 12px;
+}
+
+.share-section {
+    margin-bottom: 30px;
+}
+
+.share-section h3 {
+    font-size: 20px;
+    margin-bottom: 16px;
+    color: #1e3c72;
+}
+
+.share-box {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 12px;
+}
+
+.share-box textarea {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-family: monospace;
+    font-size: 14px;
+    resize: vertical;
+    min-height: 100px;
+    margin-bottom: 12px;
+}
+
+.btn {
+    display: inline-block;
+    padding: 12px 24px;
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+}
+
+.next-puzzle {
+    margin-top: 30px;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 12px;
+}
+
+.next-puzzle p {
+    font-size: 16px;
+    color: #666;
+    margin-bottom: 8px;
+}
+
+.countdown {
+    font-size: 28px;
+    font-weight: 700;
+    color: #1e3c72;
+}
+
+.footer {
+    text-align: center;
+    color: white;
+    padding: 20px;
+    opacity: 0.8;
+}
+
+@media (max-width: 600px) {
+    .header h1 {
+        font-size: 28px;
+    }
+
+    .game-container {
+        padding: 20px;
+    }
+
+    .statement-btn {
+        padding: 12px 16px;
+    }
+
+    .score-emoji {
+        font-size: 48px;
+    }
+
+    .attempts-display {
+        font-size: 32px;
+        letter-spacing: 4px;
+    }
+}
