@@ -289,8 +289,11 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                     <div class="share-section">
                         <h3>Share Your Result</h3>
                         <div class="share-box">
-                            <textarea id="share-text" readonly><?php echo $game->getShareableResult($puzzleId, 1); ?></textarea>
-                            <button onclick="copyShare()" class="btn">Copy to Clipboard</button>
+                            <textarea id="share-text" readonly><?php echo htmlspecialchars($game->getShareableResult($puzzleId, 1)); ?></textarea>
+                            <button onclick="copyShare()" class="btn">📋 Copy to Clipboard</button>
+                            <small style="display: block; margin-top: 10px; color: #666; font-size: 14px;">
+                                Share your result on social media or with friends!
+                            </small>
                         </div>
                     </div>
 

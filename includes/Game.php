@@ -156,24 +156,40 @@ class Game {
         }
 
         $attempts = $this->getAttempts($puzzleId);
-        $result = "[CASE] Case #{$puzzleNumber}";
-
-        if ($completion['solved']) {
-            $result .= " - Solved\n";
-        } else {
-            $result .= " - Unsolved\n";
-        }
-
-        // Create result grid
+        $puzzle = new Puzzle();
+        $puzzleData = $puzzle->getPuzzleById($puzzleId);
+        
+        // Get puzzle date for display
+        $puzzleDate = $puzzleData ? date('M j, Y', strtotime($puzzleData['puzzle_date'])) : "Today";
+        $difficulty = $puzzleData ? ucfirst($puzzleData['difficulty']) : '';
+        
+        // Build attempt indicators
+        $attemptIcons = '';
         foreach ($attempts as $attempt) {
-            if ($attempt['is_correct']) {
-                $result .= "[✓]";
-            } else {
-                $result .= "[✗]";
-            }
+            $attemptIcons .= $attempt['is_correct'] ? '✓' : '✗';
         }
-
-        $result .= "\n\nPlay tomorrow's case at " . APP_URL;
+        
+        // Score text
+        $scoreText = '';
+        if ($completion['solved']) {
+            switch ($completion['score']) {
+                case 'perfect':
+                    $scoreText = 'Perfect Deduction';
+                    break;
+                case 'close':
+                    $scoreText = 'Close Call';
+                    break;
+                default:
+                    $scoreText = 'Solved';
+            }
+        } else {
+            $scoreText = 'Case Closed';
+        }
+        
+        // Create a cleaner, more compact shareable format
+        $result = "🔍 Daily Mystery - {$puzzleDate}\n";
+        $result .= "{$scoreText} {$attemptIcons}\n";
+        $result .= "\n" . APP_URL;
 
         return $result;
     }
