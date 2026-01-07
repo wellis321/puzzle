@@ -64,8 +64,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate'])) {
                 $imagePrompt
             );
             
-            $imageNote = $generateImage && $imagePath ? " (Image generated!)" : "";
-            $success = "Puzzle generated and saved successfully!{$imageNote} <a href='puzzle-edit.php?id={$puzzleId}'>Edit puzzle</a>";
+            // Build success/error messages
+            if ($generateImage) {
+                if ($imagePath) {
+                    $success = "Puzzle generated and saved successfully! 🎨 Image generated! <a href='puzzle-edit.php?id={$puzzleId}'>Edit puzzle</a>";
+                } else {
+                    $imageError = isset($generatedPuzzle['image_generation_error']) ? $generatedPuzzle['image_generation_error'] : 'Unknown error';
+                    $success = "Puzzle generated and saved successfully! ⚠️ Image generation failed: " . htmlspecialchars($imageError) . " <a href='puzzle-edit.php?id={$puzzleId}'>Edit puzzle</a>";
+                }
+            } else {
+                $success = "Puzzle generated and saved successfully! <a href='puzzle-edit.php?id={$puzzleId}'>Edit puzzle</a>";
+            }
         } else {
             $error = "Failed to generate puzzle. Please check your API key and try again.";
         }
@@ -126,7 +135,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_all'])) {
                     $imagePrompt
                 );
                 
-                $generated[] = ucfirst($difficulty);
+                $difficultyLabel = ucfirst($difficulty);
+                if ($generateImage && !$imagePath && isset($generatedPuzzle['image_generation_error'])) {
+                    $difficultyLabel .= " (image failed)";
+                    $errors[] = ucfirst($difficulty) . " image: " . $generatedPuzzle['image_generation_error'];
+                }
+                $generated[] = $difficultyLabel;
             }
         } catch (Exception $e) {
             $errors[] = ucfirst($difficulty) . ": " . $e->getMessage();
@@ -136,6 +150,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_all'])) {
     if (!empty($generated)) {
         $imageNote = $imagesGenerated > 0 ? " ({$imagesGenerated} images generated)" : "";
         $success = "Generated puzzles: " . implode(", ", $generated) . $imageNote;
+        if ($generateImage && $imagesGenerated === 0) {
+            $success .= " ⚠️ No images were generated. Check that OPENAI_API_KEY is set in .env";
+        }
     }
     if (!empty($errors)) {
         $error = "Errors: " . implode("; ", $errors);

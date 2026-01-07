@@ -413,12 +413,40 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                     </div>
 
                     <div class="statements" id="statements">
-                        <?php foreach ($statements as $stmt): ?>
-                            <button class="statement-btn" data-statement-id="<?php echo $stmt['id']; ?>">
+                        <?php 
+                        // Mark which statements were attempted and their status
+                        $attemptedStatements = [];
+                        foreach ($attempts as $attempt) {
+                            $attemptedStatements[$attempt['statement_id']] = $attempt['is_correct'];
+                        }
+                        
+                        foreach ($statements as $stmt): 
+                            $wasAttempted = isset($attemptedStatements[$stmt['id']]);
+                            $wasCorrect = $wasAttempted && $attemptedStatements[$stmt['id']];
+                            $wasWrong = $wasAttempted && !$attemptedStatements[$stmt['id']];
+                        ?>
+                            <button class="statement-btn <?php echo $wasCorrect ? 'correct' : ($wasWrong ? 'wrong' : ''); ?>" 
+                                    data-statement-id="<?php echo $stmt['id']; ?>"
+                                    <?php if ($attemptCount >= 3 || $wasCorrect): ?>disabled<?php endif; ?>>
                                 <span class="statement-number"><?php echo $stmt['statement_order']; ?></span>
                                 <span class="statement-text"><?php echo htmlspecialchars($stmt['statement_text']); ?></span>
                             </button>
                         <?php endforeach; ?>
+                        
+                        <?php if ($attemptCount >= 3): ?>
+                            <div class="feedback feedback-error" style="display: block; margin-top: 20px;">
+                                ⚠️ Out of attempts! Scroll down to see the solution or <a href="?puzzle_id=<?php echo $puzzleId; ?>&reset=1" style="color: #c62828; text-decoration: underline;">reset this puzzle</a>.
+                            </div>
+                            <script>
+                                // Auto-scroll to solution after a moment
+                                setTimeout(function() {
+                                    const solutionEl = document.querySelector('.solution');
+                                    if (solutionEl) {
+                                        solutionEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                    }
+                                }, 1000);
+                            </script>
+                        <?php endif; ?>
                     </div>
 
                     <?php if ($attemptCount > 0): ?>
@@ -433,6 +461,49 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                                 </div>
                             <?php endfor; ?>
                         </div>
+                    <?php endif; ?>
+
+                    <?php if ($attemptCount >= 3): ?>
+                        <!-- Show solution when out of attempts -->
+                        <?php
+                        $solution = $puzzle->getSolution($puzzleId);
+                        if ($solution):
+                        ?>
+                            <div class="solution" style="margin-top: 30px;">
+                                <h3>The Solution</h3>
+                                
+                                <?php if (!empty($solution['image_path'])): ?>
+                                    <?php
+                                    $imageFullPath = __DIR__ . '/' . $solution['image_path'];
+                                    $imageExists = file_exists($imageFullPath);
+                                    ?>
+                                    <div class="solution-image-container">
+                                        <?php if ($imageExists): ?>
+                                            <img src="<?php echo htmlspecialchars($solution['image_path']); ?>" 
+                                                 alt="Solution illustration" 
+                                                 class="solution-image"
+                                                 loading="lazy"
+                                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                            <div style="display:none; padding:15px; background:#ffebee; color:#c62828; border:2px solid #c62828; border-radius:4px;">
+                                                ⚠️ Image could not be loaded
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
+                                <?php endif; ?>
+                                
+                                <p><strong>Why it doesn't fit:</strong></p>
+                                <p><?php echo nl2br(htmlspecialchars($solution['explanation'])); ?></p>
+
+                                <?php if (!empty($solution['detailed_reasoning'])): ?>
+                                <details style="margin-top: 20px;">
+                                    <summary style="cursor: pointer; font-weight: bold;">Show detailed reasoning</summary>
+                                    <div style="margin-top: 10px;">
+                                        <p><?php echo nl2br(htmlspecialchars($solution['detailed_reasoning'])); ?></p>
+                                    </div>
+                                </details>
+                                <?php endif; ?>
+                            </div>
+                        <?php endif; ?>
                     <?php endif; ?>
 
                     <div id="feedback" class="feedback"></div>
@@ -595,6 +666,12 @@ if (EnvLoader::get('APP_ENV') === 'development') {
         document.querySelectorAll('.statement-btn').forEach(btn => {
             btn.addEventListener('click', async function() {
                 if (this.disabled || this.classList.contains('loading') || this.classList.contains('wrong')) return;
+                
+                // Double check completion status
+                if (isCompleted) {
+                    showFeedback('⚠️ This puzzle is already completed. Please refresh the page to see the solution.', 'error');
+                    return;
+                }
 
                 const statementId = this.dataset.statementId;
                 const clickedButton = this;

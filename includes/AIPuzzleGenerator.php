@@ -73,15 +73,21 @@ class AIPuzzleGenerator {
         $response = $this->callAI($prompt);
         $puzzle = $this->parseResponse($response, $difficulty);
         
+        // Store any image generation errors
+        $puzzle['image_generation_error'] = null;
+        
         // Generate image if requested (after text is generated)
         if ($generateImage && isset($puzzle['solution'])) {
             try {
                 $imageData = $this->generateSolutionImage($puzzle);
                 if ($imageData) {
                     $puzzle['solution_image'] = $imageData;
+                } else {
+                    $puzzle['image_generation_error'] = 'Image generation returned no data';
                 }
             } catch (Exception $e) {
-                // Image generation failed, but puzzle text is still valid
+                // Store error message so it can be displayed to user
+                $puzzle['image_generation_error'] = $e->getMessage();
                 error_log("Image generation failed: " . $e->getMessage());
             }
         }
