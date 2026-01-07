@@ -20,6 +20,12 @@ if ($editMode) {
     $statements = $puzzle->getStatements($puzzleId);
     $hints = $puzzle->getHints($puzzleId);
     $solution = $puzzle->getSolution($puzzleId);
+    
+    // Debug: Check if solution has image_prompt (remove after testing)
+    // Uncomment to debug:
+    // if ($solution) {
+    //     error_log("Solution data: " . print_r($solution, true));
+    // }
 }
 
 $success = '';
@@ -397,7 +403,11 @@ if ($editMode) {
 
                         <div class="form-group">
                             <label for="image_prompt">Image Prompt (for reference)</label>
-                            <textarea id="image_prompt" name="image_prompt" rows="3"><?php echo $solution && !empty($solution['image_prompt']) ? htmlspecialchars($solution['image_prompt']) : ''; ?></textarea>
+                            <textarea id="image_prompt" name="image_prompt" rows="3"><?php 
+                                if ($solution && isset($solution['image_prompt']) && $solution['image_prompt'] !== null) {
+                                    echo htmlspecialchars($solution['image_prompt']);
+                                }
+                            ?></textarea>
                             <small style="display: block; margin-top: 5px; color: #666;">
                                 The prompt used to generate the image (auto-filled when generating via AI).
                             </small>

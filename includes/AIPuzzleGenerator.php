@@ -15,6 +15,14 @@ class AIPuzzleGenerator {
         $this->loadApiKey();
         $this->setBaseUrl();
     }
+    
+    /**
+     * Initialize Puzzle class for checking recent puzzles
+     */
+    private function getPuzzleInstance() {
+        require_once __DIR__ . '/Puzzle.php';
+        return new Puzzle();
+    }
 
     private function loadApiKey() {
         switch ($this->provider) {
@@ -86,7 +94,7 @@ class AIPuzzleGenerator {
      */
     private function getRecentPuzzles($currentDate, $daysBack = 14) {
         try {
-            $puzzle = new Puzzle();
+            $puzzle = $this->getPuzzleInstance();
             $recentPuzzles = [];
             
             // Check puzzles from the last N days
@@ -101,6 +109,18 @@ class AIPuzzleGenerator {
                             'date' => $checkDate
                         ];
                     }
+                }
+            }
+            
+            // Also check puzzles from the same date (other difficulties)
+            $sameDatePuzzles = $puzzle->getPuzzlesByDate($currentDate);
+            if (!empty($sameDatePuzzles)) {
+                foreach ($sameDatePuzzles as $p) {
+                    $recentPuzzles[] = [
+                        'title' => $p['title'] ?? '',
+                        'theme' => $p['theme'] ?? '',
+                        'date' => $currentDate
+                    ];
                 }
             }
             
@@ -229,20 +249,54 @@ class AIPuzzleGenerator {
         ];
     }
 
-    private function buildPrompt($difficulty) {
+    private function buildPrompt($difficulty, $recentPuzzles = []) {
         $difficultyInstructions = [
             'easy' => 'Easy: Make the inconsistency obvious. Use simple language and clear clues. The wrong detail should stand out.',
             'medium' => 'Medium: Make the inconsistency moderately difficult to spot. Include some red herrings. Require careful reading.',
             'hard' => 'Hard: Make the inconsistency very subtle. Include multiple red herrings. Require deep analysis and cross-referencing.'
         ];
 
-        return "Create a mystery puzzle case file in JSON format. The puzzle should be a \"one detail doesn't fit\" style mystery where players must find one statement that contradicts the others.
+        // Build variety instructions
+        $varietyInstructions = $this->buildVarietyInstructions($recentPuzzles);
+        
+        // Diverse theme suggestions
+        $themePool = [
+            'Corporate Espionage', 'Museum Artifact Theft', 'Luxury Yacht Disappearance',
+            'Tech Company Data Breach', 'Ancient Library Fire', 'Celebrity Stalker Case',
+            'Suburban Break-In Mystery', 'Cryptocurrency Heist', 'Antique Shop Robbery',
+            'Wildlife Park Incident', 'Vintage Car Theft', 'Rare Stamp Collection',
+            'Wine Cellar Sabotage', 'Private Investigator Case', 'Archaeological Site Theft',
+            'Vintage Jewelry Heist', 'Corporate Fraud Investigation', 'Rare Book Theft',
+            'Hotel Room Break-In', 'Private Collection Disappearance', 'Art Gallery Heist',
+            'Stolen Formula Mystery', 'Disappearing Witness Case', 'Time Capsule Theft',
+            'Laboratory Break-In', 'Shipment Interception', 'VIP Event Security Breach'
+        ];
+        
+        // Select a random theme suggestion (AI can use it or create something similar but different)
+        $suggestedTheme = $themePool[array_rand($themePool)];
 
-Difficulty: {$difficultyInstructions[$difficulty]}
+        $prompt = "Create a UNIQUE and ORIGINAL mystery puzzle case file in JSON format. The puzzle should be a \"one detail doesn't fit\" style mystery where players must find one statement that contradicts the others.
 
-Requirements:
-1. Create an engaging mystery scenario (theft, disappearance, etc.)
-2. Write a case summary (2-3 sentences)
+CRITICAL VARIETY REQUIREMENTS:
+{$varietyInstructions}
+
+DIFFICULTY: {$difficultyInstructions[$difficulty]}
+
+THEME GUIDANCE:
+- Consider using themes like: {$suggestedTheme}, or create something COMPLETELY DIFFERENT
+- AVOID repetitive themes like \"Missing Heirloom\", \"Family Estate Theft\", \"Jewelry Store Theft\" if similar puzzles exist recently
+- Think creatively: Corporate mysteries, Technology crimes, Nature/outdoor settings, Unique locations, Unusual objects or concepts
+- Make the theme DISTINCTIVE and memorable
+
+TITLE REQUIREMENTS:
+- Create a UNIQUE, creative title
+- Avoid generic titles like \"The Missing [Object]\", \"The [Location] Theft\" if similar titles exist
+- Use specific, intriguing titles: \"The Midnight Algorithm\", \"The Vanishing Point\", \"Operation Blueprint\", \"The Silent Protocol\"
+- Make titles memorable and distinctive
+
+SCENARIO REQUIREMENTS:
+1. Create an engaging, ORIGINAL mystery scenario - be creative!
+2. Write a case summary (2-3 sentences) that sets a unique scene
 3. Create a detailed report with multiple sections (use **section_name** for headers)
 4. Include 5-6 statements/facts (one must be incorrect/contradictory)
 5. Make the incorrect statement subtle but logically inconsistent with the others
@@ -251,8 +305,8 @@ Requirements:
 
 Return ONLY valid JSON in this exact format:
 {
-  \"title\": \"Case Title\",
-  \"theme\": \"Theme (e.g., Office Theft)\",
+  \"title\": \"Unique Case Title\",
+  \"theme\": \"Distinctive Theme Name\",
   \"case_summary\": \"2-3 sentence summary\",
   \"report_text\": \"**Section Name**: Content\\n\\n**Another Section**: More content\",
   \"statements\": [
@@ -271,6 +325,51 @@ Return ONLY valid JSON in this exact format:
 }
 
 Make sure exactly ONE statement has \"is_correct\": true. Make it challenging but solvable.";
+
+        return $prompt;
+    }
+    
+    /**
+     * Build instructions to avoid similarity with recent puzzles
+     */
+    private function buildVarietyInstructions($recentPuzzles) {
+        if (empty($recentPuzzles)) {
+            return "Create something completely original and unique!";
+        }
+        
+        // Extract themes and titles from recent puzzles
+        $recentThemes = [];
+        $recentTitles = [];
+        
+        foreach ($recentPuzzles as $p) {
+            if (!empty($p['theme'])) {
+                $recentThemes[] = $p['theme'];
+            }
+            if (!empty($p['title'])) {
+                $recentTitles[] = $p['title'];
+            }
+        }
+        
+        $instructions = "IMPORTANT - AVOID SIMILARITY:\n";
+        
+        if (!empty($recentThemes)) {
+            $uniqueThemes = array_unique($recentThemes);
+            $themesList = implode('", "', array_slice($uniqueThemes, 0, 10)); // Limit to 10 to avoid prompt bloat
+            $instructions .= "- DO NOT use similar themes to these recent puzzles: \"{$themesList}\"\n";
+            $instructions .= "- Create a COMPLETELY DIFFERENT theme that feels fresh and unique\n";
+        }
+        
+        if (!empty($recentTitles)) {
+            $uniqueTitles = array_unique($recentTitles);
+            $titlesList = implode('", "', array_slice($uniqueTitles, 0, 10));
+            $instructions .= "- DO NOT create titles similar to: \"{$titlesList}\"\n";
+            $instructions .= "- Use a CREATIVE, DISTINCTIVE title that stands out\n";
+        }
+        
+        $instructions .= "- Think outside the box: Use different settings, crime types, and scenarios\n";
+        $instructions .= "- Be creative with locations, objects, and circumstances\n";
+        
+        return $instructions;
     }
 
     private function callAI($prompt) {

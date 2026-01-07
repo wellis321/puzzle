@@ -128,9 +128,34 @@ class Puzzle {
      * Get solution for a puzzle
      */
     public function getSolution($puzzleId) {
-        $stmt = $this->db->prepare("SELECT explanation, detailed_reasoning, image_path, image_prompt FROM solutions WHERE puzzle_id = ?");
-        $stmt->execute([$puzzleId]);
-        return $stmt->fetch();
+        // Check if image columns exist first (for backward compatibility)
+        try {
+            $stmt = $this->db->prepare("SELECT explanation, detailed_reasoning, image_path, image_prompt FROM solutions WHERE puzzle_id = ?");
+            $stmt->execute([$puzzleId]);
+            $result = $stmt->fetch();
+            
+            // Ensure image_prompt and image_path keys exist even if NULL
+            if ($result) {
+                if (!isset($result['image_path'])) {
+                    $result['image_path'] = null;
+                }
+                if (!isset($result['image_prompt'])) {
+                    $result['image_prompt'] = null;
+                }
+            }
+            
+            return $result;
+        } catch (Exception $e) {
+            // If columns don't exist, try without them
+            $stmt = $this->db->prepare("SELECT explanation, detailed_reasoning FROM solutions WHERE puzzle_id = ?");
+            $stmt->execute([$puzzleId]);
+            $result = $stmt->fetch();
+            if ($result) {
+                $result['image_path'] = null;
+                $result['image_prompt'] = null;
+            }
+            return $result;
+        }
     }
 
     /**
