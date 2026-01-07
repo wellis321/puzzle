@@ -1,7 +1,7 @@
 <?php
 /**
  * AI Puzzle Generator
- * Supports multiple AI providers: Gemini, Groq, OpenAI
+ * Supports multiple AI providers: Gemini, Groq, OpenAI, Local Llama (Ollama)
  */
 
 class AIPuzzleGenerator {
@@ -35,11 +35,16 @@ class AIPuzzleGenerator {
             case 'openai':
                 $this->apiKey = EnvLoader::get('OPENAI_API_KEY');
                 break;
+            case 'local':
+            case 'llama':
+                // Local Llama doesn't require an API key, but we'll use a placeholder
+                $this->apiKey = 'local';
+                break;
             default:
                 throw new Exception("Unknown AI provider: {$this->provider}");
         }
 
-        if (empty($this->apiKey)) {
+        if (empty($this->apiKey) && !in_array($this->provider, ['local', 'llama'])) {
             throw new Exception("API key not found for {$this->provider}. Add {$this->provider}_API_KEY to .env file.");
         }
     }
@@ -59,10 +64,23 @@ class AIPuzzleGenerator {
             case 'openai':
                 $this->baseUrl = 'https://api.openai.com/v1/chat/completions';
                 break;
+            case 'local':
+            case 'llama':
+                // Local Llama (Ollama default, or custom URL)
+                $localUrl = EnvLoader::get('LOCAL_LLAMA_URL', 'http://localhost:11434');
+                // Default to llama3 if available, otherwise llama3.2:3b (smaller, faster)
+                $this->model = EnvLoader::get('LOCAL_LLAMA_MODEL', 'llama3');
+                $this->baseUrl = rtrim($localUrl, '/') . '/api/chat';
+                break;
         }
     }
 
     public function generatePuzzle($date, $difficulty, $generateImage = false, $avoidSimilar = true) {
+        // Increase execution time for local Llama (can be slow)
+        if (in_array($this->provider, ['local', 'llama'])) {
+            set_time_limit(180); // 3 minutes per puzzle
+        }
+        
         // Get recent puzzles to avoid similarity
         $recentPuzzles = [];
         if ($avoidSimilar) {
@@ -206,7 +224,6 @@ class AIPuzzleGenerator {
         
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
         
         if ($httpCode !== 200) {
             $errorData = json_decode($response, true);
@@ -320,7 +337,15 @@ SCENARIO REQUIREMENTS:
 4. Include 5-6 statements/facts (one must be incorrect/contradictory)
 5. Make the incorrect statement subtle but logically inconsistent with the others
 6. Create 2 progressive hints
-7. Provide a solution explanation
+7. CRITICAL: Provide a detailed solution with BOTH explanation and detailed_reasoning fields
+
+SOLUTION REQUIREMENTS (VERY IMPORTANT):
+- \"explanation\": Must be a brief but clear explanation (2-4 sentences) of why the incorrect statement doesn't fit
+- \"detailed_reasoning\": Must be a comprehensive step-by-step analysis (4-8 sentences) that:
+  * Points out the specific contradiction
+  * Explains how the incorrect statement conflicts with other facts
+  * Details the logical reasoning process
+  * Provides a thorough walkthrough of why this is the answer
 
 Return ONLY valid JSON in this exact format:
 {
@@ -338,8 +363,8 @@ Return ONLY valid JSON in this exact format:
     \"Second hint text\"
   ],
   \"solution\": {
-    \"explanation\": \"Why the statement doesn't fit\",
-    \"detailed_reasoning\": \"Detailed step-by-step explanation\"
+    \"explanation\": \"A clear, brief explanation (2-4 sentences) of why this statement doesn't fit with the other facts.\",
+    \"detailed_reasoning\": \"A comprehensive step-by-step analysis (4-8 sentences) that explains the contradiction, how it conflicts with other statements, and provides thorough reasoning for why this is the correct answer.\"
   }
 }
 
@@ -398,6 +423,9 @@ Make sure exactly ONE statement has \"is_correct\": true. Make it challenging bu
             case 'groq':
             case 'openai':
                 return $this->callOpenAICompatible($prompt);
+            case 'local':
+            case 'llama':
+                return $this->callLocalLlama($prompt);
             default:
                 throw new Exception("Unsupported provider: {$this->provider}");
         }
@@ -437,7 +465,6 @@ Make sure exactly ONE statement has \"is_correct\": true. Make it challenging bu
 
             $response = curl_exec($ch);
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
 
             if ($httpCode === 200) {
                 $result = json_decode($response, true);
@@ -508,7 +535,6 @@ Make sure exactly ONE statement has \"is_correct\": true. Make it challenging bu
 
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
 
         if ($httpCode !== 200) {
             throw new Exception("API error (HTTP {$httpCode}): " . $response);
@@ -521,6 +547,93 @@ Make sure exactly ONE statement has \"is_correct\": true. Make it challenging bu
         }
 
         return $result['choices'][0]['message']['content'];
+    }
+    
+    /**
+     * Call local Llama model (Ollama or compatible API)
+     */
+    private function callLocalLlama($prompt) {
+        // Increase execution time limit for local generation (can be slow)
+        // Local models may take 60-180 seconds depending on model size and prompt complexity
+        set_time_limit(180); // 3 minutes
+        
+        $data = [
+            'model' => $this->model,
+            'messages' => [
+                ['role' => 'user', 'content' => $prompt]
+            ],
+            'stream' => false,
+            'options' => [
+                'temperature' => 0.7
+            ]
+        ];
+
+        $ch = curl_init($this->baseUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json'
+        ]);
+        // Set longer timeouts for local generation (local models can be slow)
+        curl_setopt($ch, CURLOPT_TIMEOUT, 180); // 3 minutes total
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10); // 10 seconds to connect
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        
+        // Check for timeout errors
+        if ($response === false && strpos($curlError, 'timeout') !== false) {
+            throw new Exception("Local Llama request timed out after 180 seconds. The model may be too slow for this prompt. Try:\n" .
+                "1. Use a smaller/faster model (e.g., llama3.2:3b instead of llama3)\n" .
+                "2. Reduce prompt complexity\n" .
+                "3. Check if Ollama is processing: ollama ps");
+        }
+
+        if ($httpCode !== 200) {
+            $errorMsg = '';
+            $responseData = json_decode($response, true);
+            
+            // Connection refused - Ollama not running
+            if ($httpCode == 0 || !empty($curlError)) {
+                if (strpos($curlError, 'Failed to connect') !== false || strpos($curlError, 'Connection refused') !== false) {
+                    $errorMsg = "Ollama is not running. To start Ollama:\n";
+                    $errorMsg .= "1. Run: ollama serve (or start Ollama from Applications on macOS)\n";
+                    $errorMsg .= "2. In another terminal, verify it's running: curl http://localhost:11434/api/tags\n";
+                    $errorMsg .= "3. Pull the model if needed: ollama pull " . $this->model . "\n";
+                    $errorMsg .= "4. Try generating again.";
+                } else {
+                    $errorMsg = $curlError;
+                }
+            } elseif ($httpCode == 404 && isset($responseData['error']) && strpos($responseData['error'], 'not found') !== false) {
+                // Model not found
+                $errorMsg = "Model '" . $this->model . "' is not available.\n\n";
+                $errorMsg .= "To fix this:\n";
+                $errorMsg .= "1. Pull the model: ollama pull " . $this->model . "\n";
+                $errorMsg .= "2. Or use an existing model by setting LOCAL_LLAMA_MODEL in .env\n";
+                $errorMsg .= "3. Check available models: ollama list\n\n";
+                $errorMsg .= "Common models: llama3, llama3.2:3b, llama3.1:8b, mistral, phi3";
+            } else {
+                $errorMsg = $response;
+            }
+            
+            throw new Exception("Local Llama API error (HTTP {$httpCode}): " . $errorMsg);
+        }
+
+        $result = json_decode($response, true);
+        
+        // Ollama returns the message content directly
+        if (isset($result['message']['content'])) {
+            return $result['message']['content'];
+        }
+        
+        // Fallback: try alternative response format
+        if (isset($result['choices'][0]['message']['content'])) {
+            return $result['choices'][0]['message']['content'];
+        }
+        
+        throw new Exception("Unexpected local Llama response format: " . substr($response, 0, 200));
     }
 
     private function parseResponse($response, $difficulty) {
@@ -546,6 +659,14 @@ Make sure exactly ONE statement has \"is_correct\": true. Make it challenging bu
             if (!isset($puzzle[$field])) {
                 throw new Exception("Missing required field: {$field}");
             }
+        }
+        
+        // Ensure solution has explanation and detailed_reasoning
+        if (!isset($puzzle['solution']['explanation']) || empty($puzzle['solution']['explanation'])) {
+            $puzzle['solution']['explanation'] = "The statement doesn't fit because it contradicts the other facts presented in the case.";
+        }
+        if (!isset($puzzle['solution']['detailed_reasoning']) || empty($puzzle['solution']['detailed_reasoning'])) {
+            $puzzle['solution']['detailed_reasoning'] = $puzzle['solution']['explanation'];
         }
 
         // Validate exactly one correct statement

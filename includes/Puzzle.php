@@ -255,15 +255,35 @@ class Puzzle {
      * Create solution for a puzzle
      */
     public function createSolution($puzzleId, $explanation, $detailedReasoning = '', $imagePath = null, $imagePrompt = null) {
-        $stmt = $this->db->prepare("
-            INSERT INTO solutions (puzzle_id, explanation, detailed_reasoning, image_path, image_prompt)
-            VALUES (?, ?, ?, ?, ?)
-            ON DUPLICATE KEY UPDATE
-                explanation = VALUES(explanation),
-                detailed_reasoning = VALUES(detailed_reasoning),
-                image_path = VALUES(image_path),
-                image_prompt = VALUES(image_prompt)
-        ");
-        return $stmt->execute([$puzzleId, $explanation, $detailedReasoning, $imagePath, $imagePrompt]);
+        // Check if image columns exist
+        try {
+            $testStmt = $this->db->query("SELECT image_path, image_prompt FROM solutions LIMIT 1");
+            $hasImageColumns = true;
+        } catch (PDOException $e) {
+            $hasImageColumns = false;
+        }
+        
+        if ($hasImageColumns) {
+            $stmt = $this->db->prepare("
+                INSERT INTO solutions (puzzle_id, explanation, detailed_reasoning, image_path, image_prompt)
+                VALUES (?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE
+                    explanation = VALUES(explanation),
+                    detailed_reasoning = VALUES(detailed_reasoning),
+                    image_path = VALUES(image_path),
+                    image_prompt = VALUES(image_prompt)
+            ");
+            return $stmt->execute([$puzzleId, $explanation, $detailedReasoning, $imagePath, $imagePrompt]);
+        } else {
+            // Fallback for databases without image columns
+            $stmt = $this->db->prepare("
+                INSERT INTO solutions (puzzle_id, explanation, detailed_reasoning)
+                VALUES (?, ?, ?)
+                ON DUPLICATE KEY UPDATE
+                    explanation = VALUES(explanation),
+                    detailed_reasoning = VALUES(detailed_reasoning)
+            ");
+            return $stmt->execute([$puzzleId, $explanation, $detailedReasoning]);
+        }
     }
 }

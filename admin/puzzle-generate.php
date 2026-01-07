@@ -20,71 +20,82 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate'])) {
     $aiProvider = $_POST['ai_provider'] ?? 'gemini';
     $generateImage = isset($_POST['generate_image']) && $_POST['generate_image'] === '1';
     
+    // Increase execution time for local Llama (can be slow)
+    if (in_array($aiProvider, ['local', 'llama'])) {
+        set_time_limit(180); // 3 minutes for local generation
+    }
+    
     // Load AI generator
     require_once '../includes/AIPuzzleGenerator.php';
     $generator = new AIPuzzleGenerator($aiProvider);
     
     try {
-        $generatedPuzzle = $generator->generatePuzzle($targetDate, $difficulty, $generateImage);
-        
-        if ($generatedPuzzle) {
-            // Save to database
-            $puzzleId = $puzzle->createPuzzle([
-                'puzzle_date' => $targetDate,
-                'title' => $generatedPuzzle['title'],
-                'difficulty' => $difficulty,
-                'theme' => $generatedPuzzle['theme'],
-                'case_summary' => $generatedPuzzle['case_summary'],
-                'report_text' => $generatedPuzzle['report_text']
-            ]);
+        // Check if puzzle already exists for this date and difficulty
+        $existingPuzzle = $puzzle->getPuzzleByDate($targetDate, $difficulty);
+        if ($existingPuzzle) {
+            $error = "A puzzle for {$targetDate} with difficulty '{$difficulty}' already exists. <a href='puzzle-edit.php?id={$existingPuzzle['id']}'>Edit existing puzzle</a>";
+        } else {
+            $generatedPuzzle = $generator->generatePuzzle($targetDate, $difficulty, $generateImage);
             
-            // Save statements
-            foreach ($generatedPuzzle['statements'] as $order => $stmt) {
-                $puzzle->createStatement($puzzleId, $order + 1, $stmt['text'], $stmt['is_correct'], $stmt['category'] ?? 'general');
-            }
-            
-            // Save hints
-            foreach ($generatedPuzzle['hints'] as $order => $hint) {
-                $puzzle->createHint($puzzleId, $order + 1, $hint);
-            }
-            
-            // Save solution with optional image
-            $imagePath = null;
-            $imagePrompt = null;
-            if (isset($generatedPuzzle['solution_image'])) {
-                $imagePath = $generatedPuzzle['solution_image']['path'];
-                $imagePrompt = $generatedPuzzle['solution_image']['prompt'];
-            }
-            
-            $puzzle->createSolution(
-                $puzzleId, 
-                $generatedPuzzle['solution']['explanation'], 
-                $generatedPuzzle['solution']['detailed_reasoning'],
-                $imagePath,
-                $imagePrompt
-            );
-            
-            // Build success/error messages
-            if ($generateImage) {
-                if ($imagePath) {
-                    $success = "Puzzle generated and saved successfully! 🎨 Image generated! <a href='puzzle-edit.php?id={$puzzleId}'>Edit puzzle</a>";
-                } else {
-                    $imageError = isset($generatedPuzzle['image_generation_error']) ? $generatedPuzzle['image_generation_error'] : 'Unknown error';
-                    
-                    // Check if it's a billing error
-                    $isBillingError = strpos($imageError, 'billing') !== false || strpos($imageError, 'quota') !== false || strpos($imageError, 'limit') !== false;
-                    
-                    if ($isBillingError) {
-                        $success = "Puzzle generated and saved successfully! ⚠️ <strong>Image generation skipped:</strong> " . htmlspecialchars($imageError) . "<br><small>You can generate images later when billing limits are resolved, or use the 'Generate New AI Image' button on the edit page.</small> <a href='puzzle-edit.php?id={$puzzleId}'>Edit puzzle</a>";
+            if ($generatedPuzzle) {
+                // Save to database
+                $puzzleId = $puzzle->createPuzzle([
+                    'puzzle_date' => $targetDate,
+                    'title' => $generatedPuzzle['title'],
+                    'difficulty' => $difficulty,
+                    'theme' => $generatedPuzzle['theme'],
+                    'case_summary' => $generatedPuzzle['case_summary'],
+                    'report_text' => $generatedPuzzle['report_text']
+                ]);
+                
+                // Save statements
+                foreach ($generatedPuzzle['statements'] as $order => $stmt) {
+                    $puzzle->createStatement($puzzleId, $order + 1, $stmt['text'], $stmt['is_correct'], $stmt['category'] ?? 'general');
+                }
+                
+                // Save hints
+                foreach ($generatedPuzzle['hints'] as $order => $hint) {
+                    $puzzle->createHint($puzzleId, $order + 1, $hint);
+                }
+                
+                // Save solution with optional image
+                $imagePath = null;
+                $imagePrompt = null;
+                if (isset($generatedPuzzle['solution_image'])) {
+                    $imagePath = $generatedPuzzle['solution_image']['path'];
+                    $imagePrompt = $generatedPuzzle['solution_image']['prompt'];
+                }
+                
+                $puzzle->createSolution(
+                    $puzzleId, 
+                    $generatedPuzzle['solution']['explanation'], 
+                    $generatedPuzzle['solution']['detailed_reasoning'],
+                    $imagePath,
+                    $imagePrompt
+                );
+                
+                // Build success/error messages
+                if ($generateImage) {
+                    if ($imagePath) {
+                        $success = "Puzzle generated and saved successfully! 🎨 Image generated! <a href='puzzle-edit.php?id={$puzzleId}'>Edit puzzle</a>";
                     } else {
-                        $success = "Puzzle generated and saved successfully! ⚠️ Image generation failed: " . htmlspecialchars($imageError) . " <a href='puzzle-edit.php?id={$puzzleId}'>Edit puzzle</a>";
+                        $imageError = isset($generatedPuzzle['image_generation_error']) ? $generatedPuzzle['image_generation_error'] : 'Unknown error';
+                        
+                        // Check if it's a billing error
+                        $isBillingError = strpos($imageError, 'billing') !== false || strpos($imageError, 'quota') !== false || strpos($imageError, 'limit') !== false;
+                        
+                        if ($isBillingError) {
+                            $success = "Puzzle generated and saved successfully! ⚠️ <strong>Image generation skipped:</strong> " . htmlspecialchars($imageError) . "<br><small>You can generate images later when billing limits are resolved, or use the 'Generate New AI Image' button on the edit page.</small> <a href='puzzle-edit.php?id={$puzzleId}'>Edit puzzle</a>";
+                        } else {
+                            $success = "Puzzle generated and saved successfully! ⚠️ Image generation failed: " . htmlspecialchars($imageError) . " <a href='puzzle-edit.php?id={$puzzleId}'>Edit puzzle</a>";
+                        }
                     }
+                } else {
+                    $success = "Puzzle generated and saved successfully! <a href='puzzle-edit.php?id={$puzzleId}'>Edit puzzle</a>";
                 }
             } else {
-                $success = "Puzzle generated and saved successfully! <a href='puzzle-edit.php?id={$puzzleId}'>Edit puzzle</a>";
+                $error = "Failed to generate puzzle. Please check your API key and try again.";
             }
-        } else {
-            $error = "Failed to generate puzzle. Please check your API key and try again.";
         }
     } catch (Exception $e) {
         $error = "Error: " . $e->getMessage();
@@ -97,6 +108,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_all'])) {
     $aiProvider = $_POST['ai_provider'] ?? 'gemini';
     $generateImage = isset($_POST['generate_image']) && $_POST['generate_image'] === '1';
     
+    // Increase execution time for local Llama (can be slow, especially for batch)
+    if (in_array($aiProvider, ['local', 'llama'])) {
+        set_time_limit(540); // 9 minutes for batch generation (3 puzzles × 3 minutes)
+    }
+    
     require_once '../includes/AIPuzzleGenerator.php';
     $generator = new AIPuzzleGenerator($aiProvider);
     
@@ -106,6 +122,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_all'])) {
     
     foreach (['easy', 'medium', 'hard'] as $difficulty) {
         try {
+            // Check if puzzle already exists for this date and difficulty
+            $existingPuzzle = $puzzle->getPuzzleByDate($targetDate, $difficulty);
+            if ($existingPuzzle) {
+                $generated[] = ucfirst($difficulty) . " (already exists)";
+                continue; // Skip if already exists
+            }
+            
             $generatedPuzzle = $generator->generatePuzzle($targetDate, $difficulty, $generateImage);
             
             if ($generatedPuzzle) {
@@ -240,9 +263,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_all'])) {
                             <option value="gemini" selected>Google Gemini (Free: 15 req/min)</option>
                             <option value="groq">Groq (Free, Very Fast)</option>
                             <option value="openai">OpenAI GPT-3.5 (Free tier available)</option>
+                            <option value="local">Local Llama (Ollama - No API key needed)</option>
                         </select>
                         <small style="color: #666; display: block; margin-top: 5px;">
-                            Add API key to .env: GEMINI_API_KEY, GROQ_API_KEY, or OPENAI_API_KEY
+                            Add API key to .env: GEMINI_API_KEY, GROQ_API_KEY, or OPENAI_API_KEY<br>
+                            <strong>For local Llama:</strong> Install Ollama from <a href="https://ollama.ai" target="_blank">ollama.ai</a>, then run <code>ollama serve</code> (or start from Applications). Pull a model: <code>ollama pull llama3</code>. Set LOCAL_LLAMA_URL and LOCAL_LLAMA_MODEL in .env (defaults: http://localhost:11434, llama3). <strong>Note:</strong> Local generation can take 1-3 minutes per puzzle - be patient!
                         </small>
                     </div>
 
@@ -302,6 +327,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_all'])) {
                             <option value="gemini" selected>Google Gemini (Free: 15 req/min)</option>
                             <option value="groq">Groq (Free, Very Fast)</option>
                             <option value="openai">OpenAI GPT-3.5 (Free tier available)</option>
+                            <option value="local">Local Llama (Ollama - No API key needed)</option>
                         </select>
                     </div>
 
@@ -337,6 +363,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_all'])) {
                             <li><strong>Gemini</strong>: <a href="https://makersuite.google.com/app/apikey" target="_blank">Get free API key</a> (15 requests/minute)</li>
                             <li><strong>Groq</strong>: <a href="https://console.groq.com/keys" target="_blank">Get free API key</a> (Fast & free)</li>
                             <li><strong>OpenAI</strong>: <a href="https://platform.openai.com/api-keys" target="_blank">Get API key</a> (Free tier available)</li>
+                            <li><strong>Local Llama</strong>: Install <a href="https://ollama.ai" target="_blank">Ollama</a>, then run <code>ollama pull llama3.2:3b</code> (No API key needed, runs locally)</li>
                         </ul>
                     </li>
                     <li><strong>Add to .env file on Hostinger:</strong>
@@ -347,7 +374,12 @@ GEMINI_API_KEY=your_api_key_here
 GROQ_API_KEY=your_api_key_here
 
 # OR for OpenAI
-OPENAI_API_KEY=your_api_key_here</pre>
+OPENAI_API_KEY=your_api_key_here
+
+# OR for Local Llama (Ollama) - Optional: defaults work if Ollama is on localhost:11434
+# First install Ollama and pull a model: ollama pull llama3
+LOCAL_LLAMA_URL=http://localhost:11434
+LOCAL_LLAMA_MODEL=llama3</pre>
                     </li>
                     <li><strong>Generate puzzles:</strong> Use the forms above to generate puzzles manually, or set up automation (see below).</li>
                 </ol>

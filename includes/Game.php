@@ -80,6 +80,17 @@ class Game {
     }
 
     /**
+     * Force completion record (public method for edge cases)
+     * Used when attempts exist but completion wasn't recorded properly
+     */
+    public function forceCompletion($puzzleId, $attemptsUsed, $solved) {
+        // Only create if not already exists
+        if (!$this->hasCompletedPuzzle($puzzleId)) {
+            $this->recordCompletion($puzzleId, $attemptsUsed, $solved);
+        }
+    }
+    
+    /**
      * Record puzzle completion
      */
     private function recordCompletion($puzzleId, $attemptsUsed, $solved) {
@@ -163,7 +174,7 @@ class Game {
         $puzzleDate = $puzzleData ? date('M j, Y', strtotime($puzzleData['puzzle_date'])) : "Today";
         $difficulty = $puzzleData ? ucfirst($puzzleData['difficulty']) : '';
         
-        // Build attempt indicators
+        // Build attempt indicators (using text symbols for shareable format)
         $attemptIcons = '';
         foreach ($attempts as $attempt) {
             $attemptIcons .= $attempt['is_correct'] ? '✓' : '✗';
@@ -187,7 +198,7 @@ class Game {
         }
         
         // Create a cleaner, more compact shareable format
-        $result = "🔍 Daily Mystery - {$puzzleDate}\n";
+        $result = "Daily Mystery - {$puzzleDate}\n";
         $result .= "{$scoreText} {$attemptIcons}\n";
         $result .= "\n" . APP_URL;
 
@@ -489,6 +500,7 @@ class Game {
                     'medium_completions' => 0,
                     'hard_completions' => 0,
                     'perfect_scores' => 0,
+                    'solved_count' => 0,
                     'current_streak' => 0
                 ],
                 'table_missing' => true
@@ -517,6 +529,7 @@ class Game {
                     'medium_completions' => 0,
                     'hard_completions' => 0,
                     'perfect_scores' => 0,
+                    'solved_count' => 0,
                     'current_streak' => 0
                 ],
                 'table_missing' => false  // Table exists, just no rank record yet
@@ -529,6 +542,7 @@ class Game {
             'medium_completions' => $rank['medium_completions'],
             'hard_completions' => $rank['hard_completions'],
             'perfect_scores' => $rank['perfect_scores'],
+            'solved_count' => $rank['solved_count'] ?? 0,
             'current_streak' => $rank['current_streak']
         ];
         

@@ -90,6 +90,23 @@ $completion = $game->getCompletion($puzzleId);
 $attempts = $game->getAttempts($puzzleId);
 $attemptCount = count($attempts);
 
+// Safety check: If user has 3+ attempts but no completion record, create one
+// This handles edge cases where completion wasn't recorded properly
+if (!$completion && $attemptCount >= 3) {
+    // Check if any attempt was correct
+    $wasCorrect = false;
+    foreach ($attempts as $attempt) {
+        if ($attempt['is_correct']) {
+            $wasCorrect = true;
+            break;
+        }
+    }
+    // Force create a completion record
+    $game->forceCompletion($puzzleId, $attemptCount, $wasCorrect);
+    // Re-fetch completion
+    $completion = $game->getCompletion($puzzleId);
+}
+
 // DEV MODE: Get all puzzles for selector
 $allPuzzles = [];
 if (EnvLoader::get('APP_ENV') === 'development') {
@@ -103,6 +120,23 @@ if (EnvLoader::get('APP_ENV') === 'development') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo APP_NAME; ?> - Daily Mystery Puzzle</title>
     <link rel="stylesheet" href="css/style.css?v=<?php echo filemtime(__DIR__ . '/css/style.css'); ?>">
+    <style>
+        .icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 1em;
+            height: 1em;
+            vertical-align: middle;
+        }
+        .icon svg {
+            width: 100%;
+            height: 100%;
+            fill: currentColor;
+        }
+        .icon-lg { width: 1.5em; height: 1.5em; }
+        .icon-xl { width: 2em; height: 2em; }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -128,11 +162,29 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                                     </div>
                                 </div>
                             <?php else: ?>
-                                <div class="rank-max">⭐ MAX RANK ACHIEVED ⭐</div>
+                                <div class="rank-max">
+                                    <svg class="icon icon-lg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="margin: 0 5px;">
+                                        <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+                                    </svg>
+                                    MAX RANK ACHIEVED
+                                    <svg class="icon icon-lg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="margin: 0 5px;">
+                                        <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+                                    </svg>
+                                </div>
                             <?php endif; ?>
                             <div class="rank-stats">
-                                <span class="stat-item">🏆 <?php echo $rankProgress['stats']['solved_count']; ?> wins</span>
-                                <span class="stat-item">🔥 <?php echo $rankProgress['stats']['current_streak']; ?> day win streak</span>
+                                <span class="stat-item">
+                                    <svg class="icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="margin-right: 5px;">
+                                        <path d="M19 5h-2V3c0-1.1-.9-2-2-2h-2c-1.1 0-2 .9-2 2v2H9V3c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v2H1v14h18V5zm-4-2h2v2h-2V3zm0 12H7v-4h8v4zm0-6H7V7h8v2zm2 6h2v-6h-2v6zm0-8h2V7h-2v2z"/>
+                                    </svg>
+                                    <?php echo $rankProgress['stats']['solved_count']; ?> wins
+                                </span>
+                                <span class="stat-item">
+                                    <svg class="icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="margin-right: 5px;">
+                                        <path d="M17.83 15h1.67c.83 0 1.5-.67 1.5-1.5 0-.83-.67-1.5-1.5-1.5H17.83c.29-.36.5-.8.59-1.28.09-.49.09-1.01 0-1.5-.09-.49-.3-.93-.59-1.28H20.5c.83 0 1.5-.67 1.5-1.5 0-.83-.67-1.5-1.5-1.5h-1.67c-.98-1.18-2.39-1.89-3.92-1.89-1.53 0-2.94.71-3.92 1.89H6.5c-.83 0-1.5.67-1.5 1.5 0 .83.67 1.5 1.5 1.5h1.67c-.29.36-.5.8-.59 1.28-.09.49-.09 1.01 0 1.5.09.49.3.93.59 1.28H4.5c-.83 0-1.5.67-1.5 1.5 0 .83.67 1.5 1.5 1.5h1.67c.98 1.18 2.39 1.89 3.92 1.89 1.53 0 2.94-.71 3.92-1.89zM12 7.5c1.38 0 2.5 1.12 2.5 2.5s-1.12 2.5-2.5 2.5S9.5 11.38 9.5 10s1.12-2.5 2.5-2.5z"/>
+                                    </svg>
+                                    <?php echo $rankProgress['stats']['current_streak']; ?> day win streak
+                                </span>
                             </div>
                         </div>
                     </div>
@@ -140,7 +192,12 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                 <?php else: ?>
                 <div class="rank-setup-notice">
                     <div style="background: #fff3cd; border: 2px solid #ffc107; padding: 10px 15px; border-radius: 4px; font-size: 12px; color: #856404; max-width: 300px;">
-                        <strong>⚠️ Rank System Setup Needed:</strong><br>
+                        <strong>
+                            <svg class="icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="margin-right: 5px;">
+                                <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+                            </svg>
+                            Rank System Setup Needed:
+                        </strong><br>
                         Run <code>database/add-ranks-table.sql</code> to enable detective ranks
                     </div>
                 </div>
@@ -202,7 +259,11 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                        class="difficulty-tab difficulty-tab-<?php echo $diff; ?> <?php echo $isActive ? 'active' : ''; ?> <?php echo $isCompleted ? 'completed' : ''; ?>">
                         <span class="difficulty-tab-label"><?php echo $diffLabel; ?></span>
                         <?php if ($isCompleted): ?>
-                            <span class="difficulty-tab-checkmark">✓</span>
+                            <span class="difficulty-tab-checkmark">
+                                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="width: 14px; height: 14px; fill: currentColor;">
+                                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                                </svg>
+                            </span>
                         <?php endif; ?>
                     </a>
                 <?php endforeach; ?>
@@ -221,9 +282,19 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                     </div>
                     
                     <?php if ($completion['solved']): ?>
-                        <h2 style="color: #2e7d32;">✅ Case Solved!</h2>
+                        <h2 style="color: #2e7d32;">
+                            <svg class="icon icon-lg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="margin-right: 10px; vertical-align: middle;">
+                                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                            </svg>
+                            Case Solved!
+                        </h2>
                     <?php else: ?>
-                        <h2 style="color: #c62828;">❌ Case Failed</h2>
+                        <h2 style="color: #c62828;">
+                            <svg class="icon icon-lg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="margin-right: 10px; vertical-align: middle;">
+                                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                            </svg>
+                            Case Failed
+                        </h2>
                         <p style="font-size: 18px; color: #666; margin-top: 10px;">You didn't crack this case, but every detective has off days!</p>
                     <?php endif; ?>
 
@@ -244,9 +315,17 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                         <?php
                         foreach ($attempts as $attempt) {
                             if ($attempt['is_correct']) {
-                                echo '<span class="attempt-icon attempt-correct" title="Correct">✓</span>';
+                                echo '<span class="attempt-icon attempt-correct" title="Correct">
+                                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                                    </svg>
+                                </span>';
                             } else {
-                                echo '<span class="attempt-icon attempt-wrong" title="Incorrect">✗</span>';
+                                echo '<span class="attempt-icon attempt-wrong" title="Incorrect">
+                                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                                    </svg>
+                                </span>';
                             }
                         }
                         ?>
@@ -254,12 +333,30 @@ if (EnvLoader::get('APP_ENV') === 'development') {
 
                     <?php
                     $solution = $puzzle->getSolution($puzzleId);
-                    if ($solution):
+                    // Show solution if it exists and has an explanation
+                    if ($solution && !empty($solution['explanation'])):
+                        // Determine styling and heading based on whether puzzle was solved
+                        if ($completion['solved']) {
+                            $solutionBgColor = '#f5f9f5';
+                            $solutionBorderColor = '#2e7d32';
+                            $solutionHeadingColor = '#2e7d32';
+                            $solutionHeading = 'Why Your Answer is Correct';
+                            $solutionIcon = '<path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>';
+                        } else {
+                            $solutionBgColor = '#fffaf5';
+                            $solutionBorderColor = '#8b4513';
+                            $solutionHeadingColor = '#8b4513';
+                            $solutionHeading = 'The Solution';
+                            $solutionIcon = '<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>';
+                        }
                     ?>
-                        <!-- Solution Explanation - Always shown after solving -->
-                        <div class="solution-explanation" style="margin-top: 40px; padding: 30px; background: #e8f5e9; border: 3px solid #2e7d32; border-radius: 8px; box-shadow: 0 4px 12px rgba(46, 125, 50, 0.2);">
-                            <h3 style="color: #2e7d32; font-size: 24px; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 2px; font-family: 'Courier New', 'Courier', monospace; font-weight: 700;">
-                                ✅ Why Your Answer is Correct
+                        <!-- Solution Explanation - Always shown after completion -->
+                        <div class="solution-explanation" style="margin-top: 40px; padding: 30px; background: <?php echo $solutionBgColor; ?>; border: 3px solid <?php echo $solutionBorderColor; ?>; border-radius: 8px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);">
+                            <h3 style="color: <?php echo $solutionHeadingColor; ?>; font-size: 24px; margin-bottom: 25px; text-transform: uppercase; letter-spacing: 2px; font-family: 'Courier New', 'Courier', monospace; font-weight: 700;">
+                                <svg class="icon icon-lg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="margin-right: 10px; vertical-align: middle;">
+                                    <?php echo $solutionIcon; ?>
+                                </svg>
+                                <?php echo htmlspecialchars($solutionHeading); ?>
                             </h3>
                             
                             <?php if (!empty($solution['image_path'])): ?>
@@ -276,39 +373,61 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                                              loading="lazy"
                                              onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
                                         <div style="display:none; padding:15px; background:#ffebee; color:#c62828; border:2px solid #c62828; border-radius:4px;">
-                                            ⚠️ Image could not be loaded from: <?php echo htmlspecialchars($solution['image_path']); ?>
+                                            <svg class="icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="margin-right: 5px;">
+                                                <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+                                            </svg>
+                                            Image could not be loaded from: <?php echo htmlspecialchars($solution['image_path']); ?>
                                         </div>
                                     <?php else: ?>
                                         <div style="padding:15px; background:#fff3cd; color:#856404; border:2px solid #ffc107; border-radius:4px;">
-                                            ⚠️ Image file not found at: <code><?php echo htmlspecialchars($solution['image_path']); ?></code><br>
+                                            <svg class="icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="margin-right: 5px;">
+                                                <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+                                            </svg>
+                                            Image file not found at: <code><?php echo htmlspecialchars($solution['image_path']); ?></code><br>
                                             <small>The image path exists in the database but the file is missing. Generate a new image or check the path.</small>
                                         </div>
                                     <?php endif; ?>
                                 </div>
                             <?php endif; ?>
                             
-                            <div style="background: #fff; padding: 20px; border-radius: 6px; margin-bottom: 15px;">
-                                <p style="font-size: 18px; color: #1b5e20; line-height: 1.8; margin: 0;">
-                                    <strong style="color: #2e7d32;">Why it doesn't fit:</strong><br>
+                            <div style="background: #fff; padding: 25px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ddd;">
+                                <p style="font-size: 16px; color: #5a4a3a; font-weight: 600; margin: 0 0 12px 0; text-transform: uppercase; letter-spacing: 1px;">Why it doesn't fit:</p>
+                                <p style="font-size: 20px; color: #333; line-height: 1.8; margin: 0;">
                                     <?php echo nl2br(htmlspecialchars($solution['explanation'])); ?>
                                 </p>
                             </div>
 
                             <?php if (!empty($solution['detailed_reasoning'])): ?>
-                            <details style="margin-top: 15px; background: #fff; padding: 15px; border-radius: 6px;">
-                                <summary style="cursor: pointer; font-weight: bold; color: #2e7d32; font-size: 16px;">📖 Show detailed reasoning</summary>
-                                <div style="margin-top: 15px; padding-top: 15px; border-top: 2px solid #e8f5e9;">
-                                    <p style="color: #1b5e20; line-height: 1.8;"><?php echo nl2br(htmlspecialchars($solution['detailed_reasoning'])); ?></p>
+                            <details style="margin-top: 20px; background: #fff; padding: 20px; border-radius: 8px; border: 1px solid #ddd;">
+                                <summary style="cursor: pointer; font-weight: 600; color: #5a4a3a; font-size: 16px; text-transform: uppercase; letter-spacing: 1px;">
+                                    <svg class="icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="margin-right: 8px; vertical-align: middle;">
+                                        <path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z"/>
+                                    </svg>
+                                    Show detailed reasoning
+                                </summary>
+                                <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid #eee;">
+                                    <p style="color: #333; font-size: 18px; line-height: 1.9;"><?php echo nl2br(htmlspecialchars($solution['detailed_reasoning'])); ?></p>
                                 </div>
                             </details>
                             <?php endif; ?>
                         </div>
+                    <?php else: ?>
+                        <!-- Debug: No solution found -->
+                        <?php if (EnvLoader::get('APP_ENV') === 'development'): ?>
+                            <div style="margin-top: 40px; padding: 20px; background: #fff3cd; border: 2px solid #ffc107; border-radius: 8px;">
+                                <strong>Debug:</strong> No solution found for puzzle ID <?php echo $puzzleId; ?>. 
+                                <a href="admin/puzzle-edit.php?id=<?php echo $puzzleId; ?>">Add solution</a>
+                            </div>
+                        <?php endif; ?>
                     <?php endif; ?>
                     
                     <!-- Case Review Section -->
                     <div class="case-review-section" style="margin-top: 40px; margin-bottom: 30px;">
                         <button id="toggle-review-btn" class="btn" style="background: #8b4513; color: white; padding: 12px 25px; font-size: 16px; font-weight: 600;">
-                            📋 Review Case Details
+                            <svg class="icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="margin-right: 8px; vertical-align: middle;">
+                                <path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 16H5V5h2v3h10V5h2v14z"/>
+                            </svg>
+                            Review Case Details
                         </button>
                         <div id="case-review-content" style="display: none; margin-top: 25px; padding: 25px; background: #f8f9fa; border: 2px solid #8b4513; border-radius: 8px;">
                             <div class="review-section" style="margin-bottom: 30px;">
@@ -385,9 +504,19 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                                             <span style="font-weight: 700; color: #8b4513; margin-right: 10px;"><?php echo $stmt['statement_order']; ?>.</span>
                                             <span><?php echo htmlspecialchars($stmt['statement_text']); ?></span>
                                             <?php if ($wasCorrect || ($isCorrectAnswer && $completion)): ?>
-                                                <span style="float: right; color: #2e7d32; font-weight: 700;">✓ Correct</span>
+                                                <span style="float: right; color: #2e7d32; font-weight: 700;">
+                                                    <svg class="icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="margin-right: 5px; vertical-align: middle;">
+                                                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                                                    </svg>
+                                                    Correct
+                                                </span>
                                             <?php elseif ($wasWrong): ?>
-                                                <span style="float: right; color: #c62828; font-weight: 700;">✗ Wrong</span>
+                                                <span style="float: right; color: #c62828; font-weight: 700;">
+                                                    <svg class="icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="margin-right: 5px; vertical-align: middle;">
+                                                        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                                                    </svg>
+                                                    Wrong
+                                                </span>
                                             <?php endif; ?>
                                         </div>
                                     <?php endforeach; ?>
@@ -400,7 +529,12 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                         <h3>Share Your Result</h3>
                         <div class="share-box">
                             <textarea id="share-text" readonly><?php echo htmlspecialchars($game->getShareableResult($puzzleId, 1)); ?></textarea>
-                            <button onclick="copyShare()" class="btn">📋 Copy to Clipboard</button>
+                            <button onclick="copyShare()" class="btn">
+                                <svg class="icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="margin-right: 8px; vertical-align: middle;">
+                                    <path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 16H5V5h2v3h10V5h2v14z"/>
+                                </svg>
+                                Copy to Clipboard
+                            </button>
                             <small style="display: block; margin-top: 10px; color: #666; font-size: 14px;">
                                 Share your result on social media or with friends!
                             </small>
@@ -591,7 +725,10 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                         
                         <div id="solution-link-container" style="display: none; margin-top: 25px; text-align: center;">
                             <a href="#solution-section" onclick="revealSolution()" class="btn" style="background: #8b4513; color: white; padding: 15px 35px; font-size: 18px; font-weight: 600; text-decoration: none; display: inline-block;">
-                                🔍 View Full Solution
+                                <svg class="icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="margin-right: 8px; vertical-align: middle;">
+                                    <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+                                </svg>
+                                View Full Solution
                             </a>
                         </div>
                         
@@ -689,20 +826,23 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                                                  loading="lazy"
                                                  onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
                                             <div style="display:none; padding:15px; background:#ffebee; color:#c62828; border:2px solid #c62828; border-radius:4px;">
-                                                ⚠️ Image could not be loaded
+                                                <svg class="icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="margin-right: 5px;">
+                                                    <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+                                                </svg>
+                                                Image could not be loaded
                                             </div>
                                         <?php endif; ?>
                                     </div>
                                 <?php endif; ?>
                                 
-                                <p><strong>Why it doesn't fit:</strong></p>
-                                <p><?php echo nl2br(htmlspecialchars($solution['explanation'])); ?></p>
+                                <p style="font-size: 16px; color: #5a4a3a; font-weight: 600; margin: 0 0 12px 0; text-transform: uppercase; letter-spacing: 1px;">Why it doesn't fit:</p>
+                                <p style="font-size: 20px; color: #333; line-height: 1.8; margin: 0 0 20px 0;"><?php echo nl2br(htmlspecialchars($solution['explanation'])); ?></p>
 
                                 <?php if (!empty($solution['detailed_reasoning'])): ?>
-                                <details style="margin-top: 20px;">
-                                    <summary style="cursor: pointer; font-weight: bold;">Show detailed reasoning</summary>
-                                    <div style="margin-top: 10px;">
-                                        <p><?php echo nl2br(htmlspecialchars($solution['detailed_reasoning'])); ?></p>
+                                <details style="margin-top: 20px; background: #f9f9f9; padding: 15px; border-radius: 6px; border: 1px solid #ddd;">
+                                    <summary style="cursor: pointer; font-weight: 600; color: #5a4a3a; font-size: 16px; text-transform: uppercase; letter-spacing: 1px;">Show detailed reasoning</summary>
+                                    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd;">
+                                        <p style="font-size: 18px; color: #333; line-height: 1.9;"><?php echo nl2br(htmlspecialchars($solution['detailed_reasoning'])); ?></p>
                                     </div>
                                 </details>
                                 <?php endif; ?>
@@ -874,10 +1014,10 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                 if (reviewContent) {
                     if (reviewContent.style.display === 'none' || !reviewContent.style.display) {
                         reviewContent.style.display = 'block';
-                        this.textContent = '📋 Hide Case Details';
+                        this.innerHTML = '<svg class="icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="margin-right: 8px; vertical-align: middle;"><path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 16H5V5h2v3h10V5h2v14z"/></svg>Hide Case Details';
                     } else {
                         reviewContent.style.display = 'none';
-                        this.textContent = '📋 Review Case Details';
+                        this.innerHTML = '<svg class="icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="margin-right: 8px; vertical-align: middle;"><path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 16H5V5h2v3h10V5h2v14z"/></svg>Review Case Details';
                     }
                 }
             });
@@ -885,16 +1025,22 @@ if (EnvLoader::get('APP_ENV') === 'development') {
         
         // Scroll to top of completion screen when page loads with completion
         <?php if ($completion): ?>
+        // Immediate scroll on DOMContentLoaded for faster response
+        document.addEventListener('DOMContentLoaded', function() {
+            window.scrollTo(0, 0);
+        });
+        
         window.addEventListener('load', function() {
             // Check if we're coming from a redirect (URL hash or completion just happened)
             const completionTop = document.getElementById('completion-top');
             if (completionTop) {
-                // Small delay to ensure page is fully rendered
+                // Immediate scroll to top first
+                window.scrollTo(0, 0);
+                
+                // Then smooth scroll to completion section after a moment
                 setTimeout(() => {
                     completionTop.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    // Also scroll window to top to account for header
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                }, 100);
+                }, 200);
             }
         });
         <?php endif; ?>
@@ -906,7 +1052,7 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                 
                 // Double check completion status
                 if (isCompleted) {
-                    showFeedback('⚠️ This puzzle is already completed. Please refresh the page to see the solution.', 'error');
+                    showFeedback('<svg class="icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="margin-right: 5px;"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg> This puzzle is already completed. Please refresh the page to see the solution.', 'error');
                     return;
                 }
 
@@ -926,7 +1072,7 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                 });
 
                 // Show loading feedback immediately
-                showFeedback('🔄 Checking your answer...', 'loading');
+                showFeedback('<svg class="icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="margin-right: 5px; animation: spin 1s linear infinite;"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg> Checking your answer...', 'loading');
 
                 try {
                     const response = await fetch('api/submit-answer.php', {
@@ -956,21 +1102,21 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                             });
                             
                             // Show prominent success message
-                            showFeedback('🎉 Correct! You found the inconsistency! Well done!', 'success');
+                            showFeedback('<svg class="icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="margin-right: 5px;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg> Correct! You found the inconsistency! Well done!', 'success');
                             
                             // Add celebration animation
                             clickedButton.style.animation = 'pulseSuccess 0.6s ease-in-out 3';
                             
-                            // Smooth transition to completion screen
+                            // Smooth transition to completion screen - reload to show solution
                             setTimeout(() => {
-                                window.location.href = window.location.pathname + (window.location.search || '?puzzle_id=' + puzzleId) + '#completion-top';
+                                window.location.reload();
                             }, 2500);
                         } else {
                             // Wrong answer
                             clickedButton.classList.add('wrong');
                             
                             if (result.attempts_remaining > 0) {
-                                showFeedback(`❌ Not quite right. You have ${result.attempts_remaining} attempt${result.attempts_remaining === 1 ? '' : 's'} remaining. Keep thinking!`, 'error');
+                                showFeedback(`<svg class="icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="margin-right: 5px;"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg> Not quite right. You have ${result.attempts_remaining} attempt${result.attempts_remaining === 1 ? '' : 's'} remaining. Keep thinking!`, 'error');
                                 
                                 // Re-enable remaining buttons after a brief pause
                                 setTimeout(() => {
@@ -988,16 +1134,28 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                                     }, 3000);
                                 }, 2000);
                             } else {
-                                // Out of attempts - reload and scroll to top
+                                // Out of attempts - show failure message and reload
+                                const failureMessages = [
+                                    "Case closed, detective. But every failure is a lesson learned.",
+                                    "Not your day, detective! But even the best have off days.",
+                                    "The clues slipped through your fingers this time. Tomorrow is a new case!",
+                                    "Even Sherlock had his tough days. Keep investigating!",
+                                    "This case got the better of you, but there's always tomorrow."
+                                ];
+                                const randomMsg = failureMessages[Math.floor(Math.random() * failureMessages.length)];
+                                
+                                showFeedback(`<svg class="icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="margin-right: 5px;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg> ${randomMsg} <br><br><strong>Reloading to show the solution...</strong>`, 'error');
+                                
+                                // Force reload after showing message
                                 setTimeout(() => {
-                                    window.location.href = window.location.pathname + (window.location.search || '?puzzle_id=<?php echo $puzzleId; ?>') + '#completion-top';
-                                }, 1500);
+                                    window.location.reload();
+                                }, 2500);
                             }
                         }
                     } else {
                         // API returned error
                         clickedButton.classList.remove('loading');
-                        showFeedback('⚠️ ' + (result.error || 'An error occurred. Please try again.'), 'error');
+                        showFeedback('<svg class="icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="margin-right: 5px;"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg> ' + (result.error || 'An error occurred. Please try again.'), 'error');
                         
                         // Re-enable buttons on error
                         setTimeout(() => {
@@ -1010,7 +1168,7 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                 } catch (error) {
                     console.error('Error:', error);
                     clickedButton.classList.remove('loading');
-                    showFeedback('⚠️ An error occurred. Please check your connection and try again.', 'error');
+                    showFeedback('<svg class="icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="margin-right: 5px;"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg> An error occurred. Please check your connection and try again.', 'error');
                     
                     // Re-enable buttons on network error
                     setTimeout(() => {
@@ -1025,7 +1183,7 @@ if (EnvLoader::get('APP_ENV') === 'development') {
 
         function showFeedback(message, type) {
             const feedback = document.getElementById('feedback');
-            feedback.textContent = message;
+            feedback.innerHTML = message;
             feedback.className = 'feedback feedback-' + type;
             feedback.style.display = 'block';
             

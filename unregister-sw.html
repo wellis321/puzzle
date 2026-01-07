@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unregister Service Workers</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-top: 0;
+        }
+        button {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #c82333;
+        }
+        button.success {
+            background: #28a745;
+        }
+        button.success:hover {
+            background: #218838;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+            display: none;
+        }
+        #result.success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        #result.error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Service Worker Cleanup Tool</h1>
+        <p>This tool will unregister all service workers that might be blocking your site.</p>
+        
+        <button onclick="unregisterAll()">Unregister All Service Workers</button>
+        <button onclick="listServiceWorkers()" class="success">List Active Service Workers</button>
+        
+        <div id="result"></div>
+    </div>
+
+    <script>
+        async function listServiceWorkers() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result';
+            
+            if ('serviceWorker' in navigator) {
+                try {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    
+                    if (registrations.length === 0) {
+                        resultDiv.innerHTML = '<div class="success">✅ No service workers found!</div>';
+                        resultDiv.classList.add('success');
+                    } else {
+                        let html = `<div><strong>Found ${registrations.length} service worker(s):</strong></div>`;
+                        registrations.forEach((registration, index) => {
+                            html += `<pre>Service Worker #${index + 1}:
+Scope: ${registration.scope}
+Active: ${registration.active ? 'Yes' : 'No'}
+Installing: ${registration.installing ? 'Yes' : 'No'}
+Waiting: ${registration.waiting ? 'Yes' : 'No'}</pre>`;
+                        });
+                        resultDiv.innerHTML = html;
+                        resultDiv.classList.add('error');
+                    }
+                } catch (error) {
+                    resultDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+                    resultDiv.classList.add('error');
+                }
+            } else {
+                resultDiv.innerHTML = '<div class="success">✅ Service Workers are not supported in this browser.</div>';
+                resultDiv.classList.add('success');
+            }
+        }
+
+        async function unregisterAll() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result';
+            
+            if ('serviceWorker' in navigator) {
+                try {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    
+                    if (registrations.length === 0) {
+                        resultDiv.innerHTML = '<div class="success">✅ No service workers to unregister!</div>';
+                        resultDiv.classList.add('success');
+                        return;
+                    }
+                    
+                    let unregistered = 0;
+                    for (const registration of registrations) {
+                        const success = await registration.unregister();
+                        if (success) {
+                            unregistered++;
+                            console.log('Unregistered:', registration.scope);
+                        }
+                    }
+                    
+                    // Also clear all caches
+                    if ('caches' in window) {
+                        const cacheNames = await caches.keys();
+                        await Promise.all(
+                            cacheNames.map(cacheName => caches.delete(cacheName))
+                        );
+                        resultDiv.innerHTML = `<div class="success">
+                            ✅ Successfully unregistered ${unregistered} service worker(s)!<br>
+                            ✅ Cleared ${cacheNames.length} cache(s)!<br><br>
+                            <strong>Please refresh the page (Ctrl+R or Cmd+R) to apply changes.</strong>
+                        </div>`;
+                    } else {
+                        resultDiv.innerHTML = `<div class="success">
+                            ✅ Successfully unregistered ${unregistered} service worker(s)!<br><br>
+                            <strong>Please refresh the page (Ctrl+R or Cmd+R) to apply changes.</strong>
+                        </div>`;
+                    }
+                    resultDiv.classList.add('success');
+                    
+                    // Auto-refresh after 2 seconds
+                    setTimeout(() => {
+                        window.location.reload(true);
+                    }, 2000);
+                    
+                } catch (error) {
+                    resultDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+                    resultDiv.classList.add('error');
+                }
+            } else {
+                resultDiv.innerHTML = '<div class="success">✅ Service Workers are not supported in this browser.</div>';
+                resultDiv.classList.add('success');
+            }
+        }
+
+        // Auto-run on page load
+        window.addEventListener('load', () => {
+            listServiceWorkers();
+        });
+    </script>
+</body>
+</html>
+
