@@ -4,6 +4,8 @@
  * Provides detailed analytics for premium users
  */
 
+require_once __DIR__ . '/Database.php';
+
 class Stats {
     private $db;
     private $userId;

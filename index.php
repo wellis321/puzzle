@@ -37,8 +37,45 @@ $selectedPuzzleId = null;
 // DEV MODE: Allow puzzle selection via URL parameter
 if (EnvLoader::get('APP_ENV') === 'development' && isset($_GET['puzzle_id'])) {
     $selectedPuzzleId = (int)$_GET['puzzle_id'];
+    // #region agent log
+    file_put_contents('/Users/wellis/Desktop/Cursor/puzzle/.cursor/debug.log', json_encode(['timestamp'=>time()*1000,'location'=>'index.php:39','message'=>'DEV MODE: puzzle_id param','data'=>['puzzle_id'=>$_GET['puzzle_id'],'selectedPuzzleId'=>$selectedPuzzleId],'sessionId'=>'debug-session','runId'=>'run1','hypothesisId'=>'B'])."\n", FILE_APPEND);
+    // #endregion
     $todaysPuzzle = $puzzle->getPuzzleById($selectedPuzzleId);
-    $selectedDifficulty = $todaysPuzzle['difficulty']; // Use puzzle's actual difficulty
+    // #region agent log
+    $puzzleType = 'unknown';
+    if ($todaysPuzzle === false) {
+        $puzzleType = 'false';
+    } elseif ($todaysPuzzle === null) {
+        $puzzleType = 'null';
+    } elseif (is_array($todaysPuzzle)) {
+        $puzzleType = 'array with keys: ' . implode(',', array_keys($todaysPuzzle));
+    } else {
+        $puzzleType = 'unknown type: ' . gettype($todaysPuzzle);
+    }
+    file_put_contents('/Users/wellis/Desktop/Cursor/puzzle/.cursor/debug.log', json_encode(['timestamp'=>time()*1000,'location'=>'index.php:43','message'=>'After getPuzzleById call','data'=>['todaysPuzzle'=>$puzzleType,'selectedPuzzleId'=>$selectedPuzzleId],'sessionId'=>'debug-session','runId'=>'run1','hypothesisId'=>'A'])."\n", FILE_APPEND);
+    // #endregion
+    // #region agent log
+    if ($todaysPuzzle === false) {
+        file_put_contents('/Users/wellis/Desktop/Cursor/puzzle/.cursor/debug.log', json_encode(['timestamp'=>time()*1000,'location'=>'index.php:47','message'=>'ERROR: todaysPuzzle is false','data'=>['selectedPuzzleId'=>$selectedPuzzleId],'sessionId'=>'debug-session','runId'=>'run1','hypothesisId'=>'A'])."\n", FILE_APPEND);
+    } elseif (!is_array($todaysPuzzle)) {
+        file_put_contents('/Users/wellis/Desktop/Cursor/puzzle/.cursor/debug.log', json_encode(['timestamp'=>time()*1000,'location'=>'index.php:50','message'=>'ERROR: todaysPuzzle is not array','data'=>['type'=>gettype($todaysPuzzle),'value'=>var_export($todaysPuzzle,true)],'sessionId'=>'debug-session','runId'=>'run1','hypothesisId'=>'D'])."\n", FILE_APPEND);
+    } elseif (!isset($todaysPuzzle['difficulty'])) {
+        file_put_contents('/Users/wellis/Desktop/Cursor/puzzle/.cursor/debug.log', json_encode(['timestamp'=>time()*1000,'location'=>'index.php:53','message'=>'ERROR: difficulty key missing','data'=>['todaysPuzzleKeys'=>array_keys($todaysPuzzle)],'sessionId'=>'debug-session','runId'=>'run1','hypothesisId'=>'D'])."\n", FILE_APPEND);
+    }
+    // #endregion
+    if ($todaysPuzzle === false || !is_array($todaysPuzzle)) {
+        // #region agent log
+        file_put_contents('/Users/wellis/Desktop/Cursor/puzzle/.cursor/debug.log', json_encode(['timestamp'=>time()*1000,'location'=>'index.php:57','message'=>'Handling invalid puzzle - will redirect','data'=>['selectedPuzzleId'=>$selectedPuzzleId],'sessionId'=>'debug-session','runId'=>'run1','hypothesisId'=>'A'])."\n", FILE_APPEND);
+        // #endregion
+        // Puzzle not found - fall through to normal flow
+        $todaysPuzzle = null;
+        $selectedPuzzleId = null;
+    } else {
+        $selectedDifficulty = $todaysPuzzle['difficulty']; // Use puzzle's actual difficulty
+        // #region agent log
+        file_put_contents('/Users/wellis/Desktop/Cursor/puzzle/.cursor/debug.log', json_encode(['timestamp'=>time()*1000,'location'=>'index.php:64','message'=>'Successfully set difficulty from puzzle','data'=>['selectedDifficulty'=>$selectedDifficulty],'sessionId'=>'debug-session','runId'=>'run1','hypothesisId'=>'A'])."\n", FILE_APPEND);
+        // #endregion
+    }
 } else {
     // Get all puzzles for today
     $todaysPuzzles = $puzzle->getTodaysPuzzles();

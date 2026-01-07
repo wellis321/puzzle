@@ -4,6 +4,8 @@
  * Handles user registration, login, and session management
  */
 
+require_once __DIR__ . '/Database.php';
+
 class Auth {
     private $db;
     
