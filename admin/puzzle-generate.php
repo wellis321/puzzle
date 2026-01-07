@@ -48,8 +48,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate'])) {
                     'report_text' => $generatedPuzzle['report_text']
                 ]);
                 
-                // Save statements
-                foreach ($generatedPuzzle['statements'] as $order => $stmt) {
+                // Save statements - SHUFFLE them first to randomize position of correct answer
+                $statements = $generatedPuzzle['statements'];
+                // Shuffle array while preserving keys (to maintain is_correct mapping)
+                $keys = array_keys($statements);
+                shuffle($keys);
+                $shuffledStatements = [];
+                foreach ($keys as $key) {
+                    $shuffledStatements[] = $statements[$key];
+                }
+                // Now save in shuffled order
+                foreach ($shuffledStatements as $order => $stmt) {
                     $puzzle->createStatement($puzzleId, $order + 1, $stmt['text'], $stmt['is_correct'], $stmt['category'] ?? 'general');
                 }
                 
@@ -141,7 +150,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_all'])) {
                     'report_text' => $generatedPuzzle['report_text']
                 ]);
                 
-                foreach ($generatedPuzzle['statements'] as $order => $stmt) {
+                // Save statements - SHUFFLE them first to randomize position of correct answer
+                $statements = $generatedPuzzle['statements'];
+                // Shuffle array while preserving keys (to maintain is_correct mapping)
+                $keys = array_keys($statements);
+                shuffle($keys);
+                $shuffledStatements = [];
+                foreach ($keys as $key) {
+                    $shuffledStatements[] = $statements[$key];
+                }
+                // Now save in shuffled order
+                foreach ($shuffledStatements as $order => $stmt) {
                     $puzzle->createStatement($puzzleId, $order + 1, $stmt['text'], $stmt['is_correct'], $stmt['category'] ?? 'general');
                 }
                 
