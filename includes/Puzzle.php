@@ -286,4 +286,123 @@ class Puzzle {
             return $stmt->execute([$puzzleId, $explanation, $detailedReasoning]);
         }
     }
+    
+    /**
+     * Get witness statements for a whodunit puzzle
+     */
+    public function getWitnessStatements($puzzleId) {
+        // Check if witness_statements table exists
+        try {
+            $testStmt = $this->db->query("SELECT 1 FROM witness_statements LIMIT 1");
+        } catch (PDOException $e) {
+            return [];
+        }
+        
+        $stmt = $this->db->prepare("
+            SELECT * FROM witness_statements
+            WHERE puzzle_id = ?
+            ORDER BY statement_order ASC
+        ");
+        $stmt->execute([$puzzleId]);
+        return $stmt->fetchAll();
+    }
+    
+    /**
+     * Get suspect profiles for a whodunit puzzle
+     */
+    public function getSuspectProfiles($puzzleId) {
+        // Check if suspect_profiles table exists
+        try {
+            $testStmt = $this->db->query("SELECT 1 FROM suspect_profiles LIMIT 1");
+        } catch (PDOException $e) {
+            return [];
+        }
+        
+        $stmt = $this->db->prepare("
+            SELECT * FROM suspect_profiles
+            WHERE puzzle_id = ?
+            ORDER BY profile_order ASC
+        ");
+        $stmt->execute([$puzzleId]);
+        return $stmt->fetchAll();
+    }
+    
+    /**
+     * Create a witness statement for a whodunit puzzle
+     */
+    public function createWitnessStatement($puzzleId, $order, $witnessName, $statementText) {
+        // Check if witness_statements table exists
+        try {
+            $testStmt = $this->db->query("SELECT 1 FROM witness_statements LIMIT 1");
+        } catch (PDOException $e) {
+            return false;
+        }
+        
+        $stmt = $this->db->prepare("
+            INSERT INTO witness_statements (puzzle_id, witness_name, statement_text, statement_order)
+            VALUES (?, ?, ?, ?)
+        ");
+        return $stmt->execute([$puzzleId, $witnessName, $statementText, $order]);
+    }
+    
+    /**
+     * Create a suspect profile for a whodunit puzzle
+     */
+    public function createSuspectProfile($puzzleId, $order, $suspectName, $profileText) {
+        // Check if suspect_profiles table exists
+        try {
+            $testStmt = $this->db->query("SELECT 1 FROM suspect_profiles LIMIT 1");
+        } catch (PDOException $e) {
+            return false;
+        }
+        
+        $stmt = $this->db->prepare("
+            INSERT INTO suspect_profiles (puzzle_id, suspect_name, profile_text, profile_order)
+            VALUES (?, ?, ?, ?)
+        ");
+        return $stmt->execute([$puzzleId, $suspectName, $profileText, $order]);
+    }
+    
+    /**
+     * Check if puzzle is a whodunit
+     */
+    public function isWhodunit($puzzleId) {
+        $puzzle = $this->getPuzzleById($puzzleId);
+        if (!$puzzle) {
+            return false;
+        }
+        
+        // Check if puzzle_type column exists
+        if (isset($puzzle['puzzle_type'])) {
+            return $puzzle['puzzle_type'] === 'whodunit';
+        }
+        
+        // Fallback: check if it has witness statements
+        $witnesses = $this->getWitnessStatements($puzzleId);
+        return !empty($witnesses);
+    }
+    
+    /**
+     * Get all available whodunit puzzles for a user (filtered by unlock level)
+     */
+    public function getAvailableWhodunits($userRankLevel = 0) {
+        // Check if puzzle_type column exists
+        try {
+            $testStmt = $this->db->query("SHOW COLUMNS FROM puzzles LIKE 'puzzle_type'");
+            if ($testStmt->rowCount() === 0) {
+                return [];
+            }
+        } catch (PDOException $e) {
+            return [];
+        }
+        
+        $stmt = $this->db->prepare("
+            SELECT * FROM puzzles
+            WHERE puzzle_type = 'whodunit'
+            AND (unlock_level IS NULL OR unlock_level <= ?)
+            ORDER BY puzzle_date DESC
+        ");
+        $stmt->execute([$userRankLevel]);
+        return $stmt->fetchAll();
+    }
 }

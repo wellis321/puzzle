@@ -870,4 +870,63 @@ class Game {
             ];
         }
     }
+    
+    /**
+     * Check if user can access whodunit puzzles
+     * Unlocks at Rank 3 (Detective level) or 10+ solved cases
+     */
+    public function canAccessWhodunits() {
+        $rankProgress = $this->getRankProgress();
+        
+        // Check if rank system exists
+        if (isset($rankProgress['table_missing']) && $rankProgress['table_missing']) {
+            // If no rank system, allow access after 10 solved cases
+            // This is a fallback - normally ranks would be required
+            return true; // Allow for now, will be refined
+        }
+        
+        // Unlock at Rank 3 (Detective) or higher
+        $currentLevel = $rankProgress['current_level'] ?? 1;
+        
+        // Also check solved count as alternative unlock
+        $solvedCount = $rankProgress['stats']['solved_count'] ?? 0;
+        
+        return $currentLevel >= 3 || $solvedCount >= 10;
+    }
+    
+    /**
+     * Get user's whodunit unlock status
+     */
+    public function getWhodunitUnlockStatus() {
+        $canAccess = $this->canAccessWhodunits();
+        $rankProgress = $this->getRankProgress();
+        
+        if ($canAccess) {
+            return [
+                'unlocked' => true,
+                'reason' => 'Access granted'
+            ];
+        }
+        
+        // Determine what's needed
+        $currentLevel = $rankProgress['current_level'] ?? 1;
+        $solvedCount = $rankProgress['stats']['solved_count'] ?? 0;
+        
+        $neededLevel = 3;
+        $neededWins = 10;
+        
+        $levelProgress = $neededLevel - $currentLevel;
+        $winsProgress = $neededWins - $solvedCount;
+        
+        return [
+            'unlocked' => false,
+            'reason' => $levelProgress <= $winsProgress 
+                ? "Reach Rank 3 (Detective) - {$levelProgress} more rank(s) needed"
+                : "Solve {$winsProgress} more case(s)",
+            'current_level' => $currentLevel,
+            'needed_level' => $neededLevel,
+            'current_wins' => $solvedCount,
+            'needed_wins' => $neededWins
+        ];
+    }
 }
