@@ -10,16 +10,53 @@ require_once 'includes/Game.php';
 
 $session = new Session();
 $auth = new Auth();
-$subscription = new Subscription();
-$ads = new Ads();
+// #region agent log
+file_put_contents('/Users/wellis/Desktop/Cursor/puzzle/.cursor/debug.log', json_encode(['timestamp'=>time()*1000,'location'=>'index.php:13','message'=>'After Auth instantiation','data'=>['isLoggedIn'=>$auth->isLoggedIn(),'userId'=>$auth->getUserId()],'sessionId'=>'debug-session','runId'=>'run1','hypothesisId'=>'E'])."\n", FILE_APPEND);
+// #endregion
+
+try {
+    $subscription = new Subscription();
+    $ads = new Ads();
+    // #region agent log
+    file_put_contents('/Users/wellis/Desktop/Cursor/puzzle/.cursor/debug.log', json_encode(['timestamp'=>time()*1000,'location'=>'index.php:19','message'=>'After Subscription/Ads instantiation','data'=>[],'sessionId'=>'debug-session','runId'=>'run1','hypothesisId'=>'E'])."\n", FILE_APPEND);
+    // #endregion
+} catch (Exception $e) {
+    // #region agent log
+    file_put_contents('/Users/wellis/Desktop/Cursor/puzzle/.cursor/debug.log', json_encode(['timestamp'=>time()*1000,'location'=>'index.php:22','message'=>'ERROR creating Subscription/Ads','data'=>['error'=>$e->getMessage(),'trace'=>$e->getTraceAsString()],'sessionId'=>'debug-session','runId'=>'run1','hypothesisId'=>'E'])."\n", FILE_APPEND);
+    // #endregion
+    error_log("Error initializing Subscription/Ads: " . $e->getMessage());
+    // Set defaults if subscription/ads fail
+    $subscription = null;
+    $ads = null;
+}
+
 $puzzle = new Puzzle();
 $game = new Game($session->getSessionId(), $auth->getUserId());
+// #region agent log
+file_put_contents('/Users/wellis/Desktop/Cursor/puzzle/.cursor/debug.log', json_encode(['timestamp'=>time()*1000,'location'=>'index.php:32','message'=>'After Puzzle/Game instantiation','data'=>['sessionId'=>$session->getSessionId(),'userId'=>$auth->getUserId()],'sessionId'=>'debug-session','runId'=>'run1','hypothesisId'=>'E'])."\n", FILE_APPEND);
+// #endregion
 
 // Get user info
 $currentUser = $auth->getCurrentUser();
 $userId = $auth->getUserId();
-$isPremium = $userId ? $subscription->isPremium($userId) : false;
-$shouldShowAds = $ads->shouldShowAds($userId);
+// #region agent log
+file_put_contents('/Users/wellis/Desktop/Cursor/puzzle/.cursor/debug.log', json_encode(['timestamp'=>time()*1000,'location'=>'index.php:41','message'=>'Getting user info','data'=>['userId'=>$userId,'currentUser'=>$currentUser!==null],'sessionId'=>'debug-session','runId'=>'run1','hypothesisId'=>'E'])."\n", FILE_APPEND);
+// #endregion
+
+try {
+    $isPremium = $userId && $subscription ? $subscription->isPremium($userId) : false;
+    $shouldShowAds = $ads ? $ads->shouldShowAds($userId) : false;
+    // #region agent log
+    file_put_contents('/Users/wellis/Desktop/Cursor/puzzle/.cursor/debug.log', json_encode(['timestamp'=>time()*1000,'location'=>'index.php:46','message'=>'Premium/Ads check completed','data'=>['isPremium'=>$isPremium,'shouldShowAds'=>$shouldShowAds],'sessionId'=>'debug-session','runId'=>'run1','hypothesisId'=>'E'])."\n", FILE_APPEND);
+    // #endregion
+} catch (Exception $e) {
+    // #region agent log
+    file_put_contents('/Users/wellis/Desktop/Cursor/puzzle/.cursor/debug.log', json_encode(['timestamp'=>time()*1000,'location'=>'index.php:49','message'=>'ERROR in premium/ads check','data'=>['error'=>$e->getMessage()],'sessionId'=>'debug-session','runId'=>'run1','hypothesisId'=>'E'])."\n", FILE_APPEND);
+    // #endregion
+    error_log("Error checking premium/ads: " . $e->getMessage());
+    $isPremium = false;
+    $shouldShowAds = false;
+}
 
 // Get user rank and progress
 $rankProgress = $game->getRankProgress();
@@ -240,7 +277,7 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                     <?php endif; ?>
                 </div>
                 <div class="header-right">
-                    <?php if ($auth->isLoggedIn()): ?>
+                    <?php if ($auth && $auth->isLoggedIn()): ?>
                         <div class="user-info" style="display: flex; align-items: center; gap: 15px;">
                             <span style="color: #8b4513; font-weight: 600;"><?php echo htmlspecialchars($auth->getDisplayName()); ?></span>
                             <?php if ($isPremium): ?>
@@ -257,7 +294,7 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                     <?php endif; ?>
                 </div>
             </div>
-            <?php if ($shouldShowAds): ?>
+            <?php if ($ads && $shouldShowAds): ?>
                 <div class="header-ad-container">
                     <?php echo $ads->renderAdContainer('banner', $userId); ?>
                 </div>
@@ -471,7 +508,7 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                             <?php endif; ?>
                         </div>
                     <?php else: ?>
-                        <?php if ($shouldShowAds && $completion): ?>
+                        <?php if ($ads && $shouldShowAds && $completion): ?>
                             <!-- Ad after completion -->
                             <div style="margin: 30px 0;">
                                 <?php echo $ads->renderAdContainer('inline', $userId); ?>
@@ -720,7 +757,7 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                         </button>
                     </div>
                     
-                    <?php if ($shouldShowAds): ?>
+                    <?php if ($ads && $shouldShowAds): ?>
                         <div style="margin: 20px 0;">
                             <?php echo $ads->renderAdContainer('inline', $userId); ?>
                         </div>
