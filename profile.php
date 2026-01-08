@@ -59,9 +59,21 @@ $rankProgress = $game->getRankProgress();
         }
         .stat-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: repeat(4, 1fr);
             gap: 20px;
             margin-top: 20px;
+        }
+        
+        @media (max-width: 768px) {
+            .stat-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .stat-grid {
+                grid-template-columns: 1fr;
+            }
         }
         .stat-item {
             text-align: center;
@@ -145,7 +157,7 @@ $rankProgress = $game->getRankProgress();
 
             <div class="profile-section">
                 <h2>Detective Rank</h2>
-                <?php if (!$rankProgress['table_missing']): ?>
+                <?php if (!isset($rankProgress['table_missing']) || !$rankProgress['table_missing']): ?>
                     <div style="text-align: center; padding: 30px;">
                         <div style="font-size: 48px; color: #8b4513; margin-bottom: 10px;">🔍</div>
                         <h3 style="color: #8b4513; font-size: 28px; margin-bottom: 20px;">

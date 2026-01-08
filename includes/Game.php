@@ -36,44 +36,104 @@ class Game {
      * Check if user has already completed today's puzzle
      */
     public function hasCompletedPuzzle($puzzleId) {
-        $whereClause = $this->getUserWhereClause();
-        $identifier = $this->getIdentifier();
-        $stmt = $this->db->prepare("
-            SELECT * FROM completions
-            WHERE {$whereClause} AND puzzle_id = ?
-        ");
-        $stmt->execute([$identifier, $puzzleId]);
-        return $stmt->fetch() !== false;
+        // Check if user_id column exists
+        $hasUserIdColumn = false;
+        try {
+            $columnCheck = $this->db->query("SHOW COLUMNS FROM completions LIKE 'user_id'");
+            $hasUserIdColumn = $columnCheck->rowCount() > 0;
+        } catch (PDOException $e) {
+            $hasUserIdColumn = false;
+        }
+        
+        if ($this->userId && $hasUserIdColumn) {
+            $whereClause = "user_id = ?";
+            $identifier = $this->userId;
+        } else {
+            $whereClause = "session_id = ?";
+            $identifier = $this->sessionId;
+        }
+        
+        try {
+            $stmt = $this->db->prepare("
+                SELECT * FROM completions
+                WHERE {$whereClause} AND puzzle_id = ?
+            ");
+            $stmt->execute([$identifier, $puzzleId]);
+            return $stmt->fetch() !== false;
+        } catch (PDOException $e) {
+            error_log("Error checking completion: " . $e->getMessage());
+            return false;
+        }
     }
 
     /**
      * Get user's attempts for a puzzle
      */
     public function getAttempts($puzzleId) {
-        $whereClause = $this->getUserWhereClause();
-        $identifier = $this->getIdentifier();
-        $stmt = $this->db->prepare("
-            SELECT * FROM attempts
-            WHERE {$whereClause} AND puzzle_id = ?
-            ORDER BY attempt_number ASC
-        ");
-        $stmt->execute([$identifier, $puzzleId]);
-        return $stmt->fetchAll();
+        // Check if user_id column exists
+        $hasUserIdColumn = false;
+        try {
+            $columnCheck = $this->db->query("SHOW COLUMNS FROM attempts LIKE 'user_id'");
+            $hasUserIdColumn = $columnCheck->rowCount() > 0;
+        } catch (PDOException $e) {
+            $hasUserIdColumn = false;
+        }
+        
+        if ($this->userId && $hasUserIdColumn) {
+            $whereClause = "user_id = ?";
+            $identifier = $this->userId;
+        } else {
+            $whereClause = "session_id = ?";
+            $identifier = $this->sessionId;
+        }
+        
+        try {
+            $stmt = $this->db->prepare("
+                SELECT * FROM attempts
+                WHERE {$whereClause} AND puzzle_id = ?
+                ORDER BY attempt_number ASC
+            ");
+            $stmt->execute([$identifier, $puzzleId]);
+            return $stmt->fetchAll();
+        } catch (PDOException $e) {
+            error_log("Error getting attempts: " . $e->getMessage());
+            return [];
+        }
     }
 
     /**
      * Get number of attempts used
      */
     public function getAttemptCount($puzzleId) {
-        $whereClause = $this->getUserWhereClause();
-        $identifier = $this->getIdentifier();
-        $stmt = $this->db->prepare("
-            SELECT COUNT(*) as count FROM attempts
-            WHERE {$whereClause} AND puzzle_id = ?
-        ");
-        $stmt->execute([$identifier, $puzzleId]);
-        $result = $stmt->fetch();
-        return $result['count'];
+        // Check if user_id column exists
+        $hasUserIdColumn = false;
+        try {
+            $columnCheck = $this->db->query("SHOW COLUMNS FROM attempts LIKE 'user_id'");
+            $hasUserIdColumn = $columnCheck->rowCount() > 0;
+        } catch (PDOException $e) {
+            $hasUserIdColumn = false;
+        }
+        
+        if ($this->userId && $hasUserIdColumn) {
+            $whereClause = "user_id = ?";
+            $identifier = $this->userId;
+        } else {
+            $whereClause = "session_id = ?";
+            $identifier = $this->sessionId;
+        }
+        
+        try {
+            $stmt = $this->db->prepare("
+                SELECT COUNT(*) as count FROM attempts
+                WHERE {$whereClause} AND puzzle_id = ?
+            ");
+            $stmt->execute([$identifier, $puzzleId]);
+            $result = $stmt->fetch();
+            return $result ? (int)$result['count'] : 0;
+        } catch (PDOException $e) {
+            error_log("Error getting attempt count: " . $e->getMessage());
+            return 0;
+        }
     }
 
     /**
@@ -211,14 +271,34 @@ class Game {
      * Get user's completion record for a puzzle
      */
     public function getCompletion($puzzleId) {
-        $whereClause = $this->getUserWhereClause();
-        $identifier = $this->getIdentifier();
-        $stmt = $this->db->prepare("
-            SELECT * FROM completions
-            WHERE {$whereClause} AND puzzle_id = ?
-        ");
-        $stmt->execute([$identifier, $puzzleId]);
-        return $stmt->fetch();
+        // Check if user_id column exists
+        $hasUserIdColumn = false;
+        try {
+            $columnCheck = $this->db->query("SHOW COLUMNS FROM completions LIKE 'user_id'");
+            $hasUserIdColumn = $columnCheck->rowCount() > 0;
+        } catch (PDOException $e) {
+            $hasUserIdColumn = false;
+        }
+        
+        if ($this->userId && $hasUserIdColumn) {
+            $whereClause = "user_id = ?";
+            $identifier = $this->userId;
+        } else {
+            $whereClause = "session_id = ?";
+            $identifier = $this->sessionId;
+        }
+        
+        try {
+            $stmt = $this->db->prepare("
+                SELECT * FROM completions
+                WHERE {$whereClause} AND puzzle_id = ?
+            ");
+            $stmt->execute([$identifier, $puzzleId]);
+            return $stmt->fetch();
+        } catch (PDOException $e) {
+            error_log("Error getting completion: " . $e->getMessage());
+            return false;
+        }
     }
 
     /**
@@ -295,9 +375,23 @@ class Game {
             error_log("Warning: user_sessions table may not exist: " . $e->getMessage());
         }
         
-        // Check by user_id first, then session_id
+        // Check by user_id first, then session_id (only if columns exist)
+        $hasUserIdColumn = false;
+        try {
+            $columnCheck = $this->db->query("SHOW COLUMNS FROM user_ranks LIKE 'user_id'");
+            $hasUserIdColumn = $columnCheck->rowCount() > 0;
+        } catch (PDOException $e) {
+            $hasUserIdColumn = false;
+        }
+        
         $identifier = $this->getIdentifier();
-        $whereClause = $this->getUserWhereClause();
+        if ($this->userId && $hasUserIdColumn) {
+            $whereClause = "user_id = ?";
+            $identifier = $this->userId;
+        } else {
+            $whereClause = "session_id = ?";
+            $identifier = $this->sessionId;
+        }
         
         try {
             $stmt = $this->db->prepare("SELECT * FROM user_ranks WHERE {$whereClause}");
@@ -306,15 +400,18 @@ class Game {
             
             if (!$rank) {
                 // Create initial rank record
-                if ($this->userId) {
+                // Always provide session_id since it's required (no default value)
+                if ($this->userId && $hasUserIdColumn) {
+                    // Include both user_id and session_id
                     $stmt = $this->db->prepare("
-                        INSERT IGNORE INTO user_ranks (user_id, rank_name, rank_level)
-                        VALUES (?, 'Novice Detective', 1)
+                        INSERT IGNORE INTO user_ranks (user_id, session_id, rank_name, rank_level)
+                        VALUES (?, ?, 'Novice Detective', 1)
                     ");
                     try {
-                        $stmt->execute([$this->userId]);
+                        $stmt->execute([$this->userId, $this->sessionId]);
                     } catch (PDOException $e) {
                         // If insert fails, just continue
+                        error_log("Error creating rank record: " . $e->getMessage());
                     }
                     $stmt = $this->db->prepare("SELECT * FROM user_ranks WHERE user_id = ?");
                     $stmt->execute([$this->userId]);
@@ -353,19 +450,42 @@ class Game {
             return;
         }
         
+        // Check if user_id column exists in completions table
+        $hasUserIdColumn = false;
+        try {
+            $columnCheck = $this->db->query("SHOW COLUMNS FROM completions LIKE 'user_id'");
+            $hasUserIdColumn = $columnCheck->rowCount() > 0;
+        } catch (PDOException $e) {
+            // If we can't check, assume it doesn't exist
+            $hasUserIdColumn = false;
+        }
+        
         // Get all completions for this user (by user_id or session_id)
-        $whereClause = $this->getUserWhereClause();
-        $identifier = $this->getIdentifier();
-        $stmt = $this->db->prepare("
-            SELECT 
-                c.*,
-                p.difficulty
-            FROM completions c
-            JOIN puzzles p ON c.puzzle_id = p.id
-            WHERE c.{$whereClause}
-        ");
-        $stmt->execute([$identifier]);
-        $completions = $stmt->fetchAll();
+        // Only use user_id if the column exists and user is logged in
+        if ($this->userId && $hasUserIdColumn) {
+            $whereClause = "c.user_id = ?";
+            $identifier = $this->userId;
+        } else {
+            $whereClause = "c.session_id = ?";
+            $identifier = $this->sessionId;
+        }
+        
+        try {
+            $stmt = $this->db->prepare("
+                SELECT 
+                    c.*,
+                    p.difficulty
+                FROM completions c
+                JOIN puzzles p ON c.puzzle_id = p.id
+                WHERE {$whereClause}
+            ");
+            $stmt->execute([$identifier]);
+            $completions = $stmt->fetchAll();
+        } catch (PDOException $e) {
+            // If query fails (e.g., column doesn't exist), return empty stats
+            error_log("Error fetching completions for rank update: " . $e->getMessage());
+            $completions = [];
+        }
 
         // Calculate statistics
         $stats = [
@@ -412,17 +532,28 @@ class Game {
         $newBestStreak = max($currentBestStreak, $streak['current']);
         
         // Update or insert rank record (using user_id if available, otherwise session_id)
-        $identifier = $this->getIdentifier();
+        // Check if user_id column exists in user_ranks table
+        $hasUserIdColumnInRanks = false;
+        try {
+            $columnCheck = $this->db->query("SHOW COLUMNS FROM user_ranks LIKE 'user_id'");
+            $hasUserIdColumnInRanks = $columnCheck->rowCount() > 0;
+        } catch (PDOException $e) {
+            $hasUserIdColumnInRanks = false;
+        }
         
-        if ($this->userId) {
+        // Always provide session_id since it's required (no default value)
+        // Use user_id if available and column exists
+        if ($this->userId && $hasUserIdColumnInRanks) {
+            // Include both user_id and session_id when user_id column exists
             $stmt = $this->db->prepare("
                 INSERT INTO user_ranks (
-                    user_id, rank_name, rank_level,
+                    user_id, session_id, rank_name, rank_level,
                     total_completions, easy_completions, medium_completions, hard_completions,
                     perfect_scores, total_attempts, solved_count,
                     current_streak, best_streak, last_activity_date
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE())
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE())
                 ON DUPLICATE KEY UPDATE
+                    user_id = VALUES(user_id),
                     rank_name = VALUES(rank_name),
                     rank_level = VALUES(rank_level),
                     total_completions = VALUES(total_completions),
@@ -437,7 +568,23 @@ class Game {
                     last_activity_date = CURDATE(),
                     updated_at = CURRENT_TIMESTAMP
             ");
+            $stmt->execute([
+                $this->userId,
+                $this->sessionId,
+                $rankData['name'],
+                $rankData['level'],
+                $stats['total_completions'],
+                $stats['easy_completions'],
+                $stats['medium_completions'],
+                $stats['hard_completions'],
+                $stats['perfect_scores'],
+                $stats['total_attempts'],
+                $stats['solved_count'],
+                $streak['current'],
+                $newBestStreak
+            ]);
         } else {
+            // Only session_id (old schema or anonymous user)
             $stmt = $this->db->prepare("
                 INSERT INTO user_ranks (
                     session_id, rank_name, rank_level,
@@ -460,39 +607,59 @@ class Game {
                     last_activity_date = CURDATE(),
                     updated_at = CURRENT_TIMESTAMP
             ");
+            $stmt->execute([
+                $this->sessionId,
+                $rankData['name'],
+                $rankData['level'],
+                $stats['total_completions'],
+                $stats['easy_completions'],
+                $stats['medium_completions'],
+                $stats['hard_completions'],
+                $stats['perfect_scores'],
+                $stats['total_attempts'],
+                $stats['solved_count'],
+                $streak['current'],
+                $newBestStreak
+            ]);
         }
-        
-        $stmt->execute([
-            $identifier,
-            $rankData['name'],
-            $rankData['level'],
-            $stats['total_completions'],
-            $stats['easy_completions'],
-            $stats['medium_completions'],
-            $stats['hard_completions'],
-            $stats['perfect_scores'],
-            $stats['total_attempts'],
-            $stats['solved_count'],
-            $streak['current'],
-            $newBestStreak
-        ]);
     }
 
     /**
      * Calculate user's current winning streak (only counts SOLVED cases)
      */
     private function calculateStreak() {
+        // Check if user_id column exists in completions table
+        $hasUserIdColumn = false;
+        try {
+            $columnCheck = $this->db->query("SHOW COLUMNS FROM completions LIKE 'user_id'");
+            $hasUserIdColumn = $columnCheck->rowCount() > 0;
+        } catch (PDOException $e) {
+            $hasUserIdColumn = false;
+        }
+        
         // Get distinct dates with SOLVED completions only, ordered by date descending
-        $whereClause = $this->getUserWhereClause();
-        $identifier = $this->getIdentifier();
-        $stmt = $this->db->prepare("
-            SELECT DISTINCT DATE(c.completed_at) as completion_date
-            FROM completions c
-            WHERE c.{$whereClause} AND c.solved = 1
-            ORDER BY completion_date DESC
-        ");
-        $stmt->execute([$identifier]);
-        $dates = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if ($this->userId && $hasUserIdColumn) {
+            $whereClause = "c.user_id = ?";
+            $identifier = $this->userId;
+        } else {
+            $whereClause = "c.session_id = ?";
+            $identifier = $this->sessionId;
+        }
+        
+        try {
+            $stmt = $this->db->prepare("
+                SELECT DISTINCT DATE(c.completed_at) as completion_date
+                FROM completions c
+                WHERE {$whereClause} AND c.solved = 1
+                ORDER BY completion_date DESC
+            ");
+            $stmt->execute([$identifier]);
+            $dates = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            // If query fails, return empty streak
+            error_log("Error calculating streak: " . $e->getMessage());
+            $dates = [];
+        }
         
         if (empty($dates)) {
             return ['current' => 0];
@@ -685,7 +852,8 @@ class Game {
                 'progress' => $progress,
                 'needed' => $needed,
                 'percentage' => $percentage,
-                'stats' => $stats
+                'stats' => $stats,
+                'table_missing' => false
             ];
         } else {
             // Max rank achieved
@@ -697,7 +865,8 @@ class Game {
                 'needed' => 0,
                 'percentage' => 100,
                 'stats' => $stats,
-                'max_rank' => true
+                'max_rank' => true,
+                'table_missing' => false
             ];
         }
     }

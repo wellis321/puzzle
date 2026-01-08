@@ -59,8 +59,23 @@ try {
 }
 
 // Get user rank and progress
-$rankProgress = $game->getRankProgress();
-$ranksTableMissing = isset($rankProgress['table_missing']) && $rankProgress['table_missing'];
+try {
+    // #region agent log
+    file_put_contents('/Users/wellis/Desktop/Cursor/puzzle/.cursor/debug.log', json_encode(['timestamp'=>time()*1000,'location'=>'index.php:52','message'=>'Before getRankProgress','data'=>['userId'=>$userId],'sessionId'=>'debug-session','runId'=>'run1','hypothesisId'=>'F'])."\n", FILE_APPEND);
+    // #endregion
+    $rankProgress = $game->getRankProgress();
+    // #region agent log
+    file_put_contents('/Users/wellis/Desktop/Cursor/puzzle/.cursor/debug.log', json_encode(['timestamp'=>time()*1000,'location'=>'index.php:56','message'=>'After getRankProgress','data'=>['hasRankProgress'=>isset($rankProgress)],'sessionId'=>'debug-session','runId'=>'run1','hypothesisId'=>'F'])."\n", FILE_APPEND);
+    // #endregion
+    $ranksTableMissing = isset($rankProgress['table_missing']) && $rankProgress['table_missing'];
+} catch (Exception $e) {
+    // #region agent log
+    file_put_contents('/Users/wellis/Desktop/Cursor/puzzle/.cursor/debug.log', json_encode(['timestamp'=>time()*1000,'location'=>'index.php:60','message'=>'ERROR in getRankProgress','data'=>['error'=>$e->getMessage(),'trace'=>$e->getTraceAsString()],'sessionId'=>'debug-session','runId'=>'run1','hypothesisId'=>'F'])."\n", FILE_APPEND);
+    // #endregion
+    error_log("Error getting rank progress: " . $e->getMessage());
+    $rankProgress = ['table_missing' => true];
+    $ranksTableMissing = true;
+}
 
 // Get selected difficulty from URL parameter (default to 'medium' if not specified)
 $selectedDifficulty = isset($_GET['difficulty']) && in_array($_GET['difficulty'], ['easy', 'medium', 'hard']) 
@@ -115,7 +130,21 @@ if (EnvLoader::get('APP_ENV') === 'development' && isset($_GET['puzzle_id'])) {
     }
 } else {
     // Get all puzzles for today
-    $todaysPuzzles = $puzzle->getTodaysPuzzles();
+    try {
+        // #region agent log
+        file_put_contents('/Users/wellis/Desktop/Cursor/puzzle/.cursor/debug.log', json_encode(['timestamp'=>time()*1000,'location'=>'index.php:135','message'=>'Before getTodaysPuzzles','data'=>['selectedDifficulty'=>$selectedDifficulty],'sessionId'=>'debug-session','runId'=>'run1','hypothesisId'=>'G'])."\n", FILE_APPEND);
+        // #endregion
+        $todaysPuzzles = $puzzle->getTodaysPuzzles();
+        // #region agent log
+        file_put_contents('/Users/wellis/Desktop/Cursor/puzzle/.cursor/debug.log', json_encode(['timestamp'=>time()*1000,'location'=>'index.php:139','message'=>'After getTodaysPuzzles','data'=>['count'=>count($todaysPuzzles)],'sessionId'=>'debug-session','runId'=>'run1','hypothesisId'=>'G'])."\n", FILE_APPEND);
+        // #endregion
+    } catch (Exception $e) {
+        // #region agent log
+        file_put_contents('/Users/wellis/Desktop/Cursor/puzzle/.cursor/debug.log', json_encode(['timestamp'=>time()*1000,'location'=>'index.php:142','message'=>'ERROR in getTodaysPuzzles','data'=>['error'=>$e->getMessage(),'trace'=>$e->getTraceAsString()],'sessionId'=>'debug-session','runId'=>'run1','hypothesisId'=>'G'])."\n", FILE_APPEND);
+        // #endregion
+        error_log("Error getting today's puzzles: " . $e->getMessage());
+        $todaysPuzzles = [];
+    }
     
     // If no puzzles available for today, show error
     if (empty($todaysPuzzles)) {
