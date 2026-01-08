@@ -118,6 +118,49 @@ $rankProgress = $game->getRankProgress();
             background: #ddd;
             color: #333;
         }
+        .header-nav {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .header-nav a {
+            display: inline-block;
+            padding: 10px 18px;
+            background: #8b4513;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            border: 2px solid #8b4513;
+        }
+        .header-nav a:hover {
+            background: #6b3413;
+            border-color: #6b3413;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(139, 69, 19, 0.3);
+        }
+        .header-nav a.btn-outline {
+            background: transparent;
+            color: #8b4513;
+            border-color: #8b4513;
+        }
+        .header-nav a.btn-outline:hover {
+            background: #8b4513;
+            color: white;
+        }
+        @media (max-width: 768px) {
+            .header-nav {
+                flex-direction: column;
+                gap: 8px;
+                width: 100%;
+            }
+            .header-nav a {
+                width: 100%;
+                text-align: center;
+            }
+        }
         .subscription-info {
             padding: 20px;
             background: #f0f8ff;
@@ -138,8 +181,10 @@ $rankProgress = $game->getRankProgress();
                     <h1><a href="index.php" style="color: #8b4513; text-decoration: none;"><?php echo APP_NAME; ?></a></h1>
                 </div>
                 <div class="header-right">
-                    <a href="index.php" style="color: #8b4513; text-decoration: none; margin-right: 15px;">← Back to Game</a>
-                    <a href="logout.php" style="color: #8b4513; text-decoration: none;">Logout</a>
+                    <div class="header-nav">
+                        <a href="index.php" class="btn-outline">← Back to Game</a>
+                        <a href="logout.php">Logout</a>
+                    </div>
                 </div>
             </div>
         </header>

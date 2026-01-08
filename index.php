@@ -307,18 +307,18 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                 </div>
                 <div class="header-right">
                     <?php if ($auth && $auth->isLoggedIn()): ?>
-                        <div class="user-info" style="display: flex; align-items: center; gap: 15px;">
-                            <span style="color: #8b4513; font-weight: 600;"><?php echo htmlspecialchars($auth->getDisplayName()); ?></span>
+                        <div class="user-info">
+                            <span><?php echo htmlspecialchars($auth->getDisplayName()); ?></span>
                             <?php if ($isPremium): ?>
                                 <span style="background: #ffd700; color: #8b4513; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600;">PREMIUM</span>
                             <?php endif; ?>
-                            <a href="profile.php" style="color: #8b4513; text-decoration: none; font-size: 14px;">Profile</a>
-                            <a href="logout.php" style="color: #8b4513; text-decoration: none; font-size: 14px;">Logout</a>
+                            <a href="profile.php">Profile</a>
+                            <a href="logout.php">Logout</a>
                         </div>
                     <?php else: ?>
-                        <div class="auth-buttons" style="display: flex; gap: 10px;">
-                            <a href="login.php" style="color: #8b4513; text-decoration: none; padding: 8px 16px; border: 2px solid #8b4513; border-radius: 4px; font-weight: 600;">Log In</a>
-                            <a href="register.php" style="background: #8b4513; color: white; text-decoration: none; padding: 8px 16px; border-radius: 4px; font-weight: 600;">Sign Up</a>
+                        <div class="auth-buttons">
+                            <a href="login.php" class="btn-outline">Log In</a>
+                            <a href="register.php">Sign Up</a>
                         </div>
                     <?php endif; ?>
                 </div>

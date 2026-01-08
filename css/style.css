@@ -60,18 +60,90 @@ body::before {
     text-align: center;
     flex: 1;
     width: 100%;
+    padding-right: 220px; /* Space for header-right buttons */
 }
 
 .header-right {
     position: absolute;
-    top: 0;
-    right: 0;
+    top: 10px;
+    right: 10px;
     z-index: 10;
 }
 
+/* Header Navigation Buttons */
+.auth-buttons,
+.user-info,
+.header-nav {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.auth-buttons a,
+.user-info a,
+.header-nav a {
+    display: inline-block;
+    padding: 10px 18px;
+    background: #8b4513;
+    color: white;
+    text-decoration: none;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 14px;
+    transition: all 0.3s ease;
+    border: 2px solid #8b4513;
+    white-space: nowrap;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.auth-buttons a:hover,
+.user-info a:hover,
+.header-nav a:hover {
+    background: #6b3413;
+    border-color: #6b3413;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(139, 69, 19, 0.3);
+}
+
+.auth-buttons a.btn-outline,
+.user-info a.btn-outline,
+.header-nav a.btn-outline {
+    background: transparent;
+    color: #8b4513;
+    border-color: #8b4513;
+}
+
+.auth-buttons a.btn-outline:hover,
+.user-info a.btn-outline:hover,
+.header-nav a.btn-outline:hover {
+    background: #8b4513;
+    color: white;
+}
+
+.user-info {
+    gap: 12px;
+    background: rgba(255, 255, 255, 0.95);
+    padding: 8px 12px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.user-info span {
+    color: #8b4513;
+    font-weight: 600;
+    font-size: 14px;
+}
+
 @media (max-width: 768px) {
+    .header-left {
+        padding-right: 0;
+    }
+    
     .header-right {
         position: static;
+        width: 100%;
+        margin-top: 15px;
     }
     .header-top {
         flex-direction: column;
@@ -79,6 +151,20 @@ body::before {
     
     .detective-rank {
         width: 100%;
+    }
+    
+    .auth-buttons,
+    .user-info,
+    .header-nav {
+        flex-direction: column;
+        width: 100%;
+    }
+    
+    .auth-buttons a,
+    .user-info a,
+    .header-nav a {
+        width: 100%;
+        text-align: center;
     }
 }
 
