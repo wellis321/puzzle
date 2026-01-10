@@ -4,31 +4,52 @@
 
 The puzzle generation system uses AI to automatically create puzzles. You can generate puzzles manually or set up automated monthly generation.
 
-## 🆓 Free AI Options
+## 🤖 AI Providers
 
-### 1. **Google Gemini** (Recommended - Best Free Option)
+### 1. **Anthropic Claude 3.5 Sonnet** (Recommended - Highest Quality)
+- **Quality**: Excellent - best for complex puzzles
+- **Speed**: Fast
+- **Cost**: Pay-as-you-go (check Anthropic pricing)
+- **Get API key**: https://console.anthropic.com
+- **Important**: Claude Pro subscription does NOT include API access - requires separate Anthropic Console account
+- **Setup**: 
+  1. Sign up at https://console.anthropic.com
+  2. Navigate to API Keys section
+  3. Create new API key
+  4. Add to `.env` as `ANTHROPIC_API_KEY=your_key_here`
+
+### 2. **Google Gemini** (Best Free Option)
 - **Free tier**: 15 requests per minute
 - **Cost**: Completely free for reasonable usage
 - **Speed**: Fast
 - **Get API key**: https://makersuite.google.com/app/apikey
 
-### 2. **Groq** (Fastest Free Option)
+### 3. **Groq** (Fastest Free Option)
 - **Free tier**: Very generous (30+ requests/minute)
 - **Cost**: Free
 - **Speed**: Extremely fast (uses specialized inference chips)
 - **Get API key**: https://console.groq.com/keys
 
-### 3. **OpenAI GPT-3.5**
+### 4. **OpenAI GPT-3.5**
 - **Free tier**: $5 credit on signup
 - **Cost**: ~$0.002 per puzzle after free tier
 - **Get API key**: https://platform.openai.com/api-keys
 
-**Recommendation**: Start with **Gemini** - it's completely free and works great!
+**Recommendation**: For best quality, use **Claude 3.5 Sonnet**. For free options, start with **Gemini** - it's completely free and works great!
 
 ## 🚀 Quick Start
 
 ### Step 1: Get API Key
 
+**For Claude (Recommended):**
+1. Go to https://console.anthropic.com
+2. Sign up or sign in
+3. Navigate to API Keys section
+4. Create new API key
+5. Copy your key
+6. **Note**: Claude Pro subscription does NOT include API access - requires separate account
+
+**For Gemini (Free):**
 1. Go to https://makersuite.google.com/app/apikey
 2. Sign in with Google
 3. Click "Create API Key"
@@ -39,10 +60,16 @@ The puzzle generation system uses AI to automatically create puzzles. You can ge
 On Hostinger, edit your `.env` file:
 
 ```env
-# Add this line
-GEMINI_API_KEY=your_api_key_here
+# For Claude (Recommended)
+ANTHROPIC_API_KEY=your_api_key_here
 
 # Optional: Set default provider
+AI_PROVIDER=claude
+```
+
+Or for Gemini:
+```env
+GEMINI_API_KEY=your_api_key_here
 AI_PROVIDER=gemini
 ```
 
@@ -127,7 +154,7 @@ Set up a cron job to automatically generate puzzles monthly.
 
 In `.env`:
 ```env
-AI_PROVIDER=gemini  # or groq, openai
+AI_PROVIDER=claude  # or gemini, groq, openai
 ```
 
 ### Adjust Generation Days

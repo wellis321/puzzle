@@ -200,6 +200,22 @@ $puzzleId = $todaysPuzzle['id'];
 $statements = $puzzle->getStatements($puzzleId);
 $hints = $puzzle->getHints($puzzleId);
 
+// Check if this is a whodunit puzzle
+$isWhodunit = $puzzle->isWhodunit($puzzleId);
+$witnessStatements = [];
+$suspectProfiles = [];
+$whodunitUnlocked = true;
+
+if ($isWhodunit) {
+    // Check if user can access whodunits
+    $whodunitUnlocked = $game->canAccessWhodunits();
+    
+    if ($whodunitUnlocked) {
+        $witnessStatements = $puzzle->getWitnessStatements($puzzleId);
+        $suspectProfiles = $puzzle->getSuspectProfiles($puzzleId);
+    }
+}
+
 // Check if user has already completed this puzzle
 $completion = $game->getCompletion($puzzleId);
 $attempts = $game->getAttempts($puzzleId);
@@ -570,17 +586,16 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                             </div>
                             
                             <?php
-                            // Parse and display report sections
+                            // Parse and display report sections (reuse same logic as main sections)
                             $reportText = $todaysPuzzle['report_text'];
                             $rawSections = preg_split('/\n\n+/', $reportText);
                             $sections = [];
                             
                             foreach ($rawSections as $rawSection):
                                 $trimmed = trim($rawSection);
-                                if (empty($trimmed)) continue;
+                                if ($trimmed === '') continue;
                                 
-                                // Check for title (format: **Title**: or **Title**)
-                                if (preg_match('/^\*\*(.*?)\*\*\s*:?\s*(.*)$/s', $trimmed, $titleMatch)) {
+                                if (preg_match('/^\*\*(.*?)\*\*\s*:?\s*/', $trimmed, $titleMatch)) {
                                     $title = trim($titleMatch[1]);
                                     $content = preg_replace('/^\*\*(.*?)\*\*\s*:?\s*/', '', $trimmed);
                                     $content = trim($content);
@@ -594,6 +609,28 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                                 $content = trim($content);
                                 $sections[] = ['title' => $title, 'content' => $content];
                             endforeach;
+                            
+                            // Merge sections: if a section has only a title and no content, merge it with the next section
+                            $mergedSections = [];
+                            $i = 0;
+                            while ($i < count($sections)) {
+                                $current = $sections[$i];
+                                
+                                // If current section has a title but no/empty content, check next section
+                                if (!empty($current['title']) && empty($current['content']) && $i + 1 < count($sections)) {
+                                    $next = $sections[$i + 1];
+                                    // If next section has content but no title, merge them
+                                    if (empty($next['title']) && !empty($next['content'])) {
+                                        $mergedSections[] = ['title' => $current['title'], 'content' => $next['content']];
+                                        $i += 2; // Skip both sections
+                                        continue;
+                                    }
+                                }
+                                
+                                $mergedSections[] = $current;
+                                $i++;
+                            }
+                            $sections = $mergedSections;
                             
                             if (!empty($sections)):
                             ?>
@@ -704,16 +741,31 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                         <div class="case-summary">
                             <p><?php echo nl2br(htmlspecialchars($todaysPuzzle['case_summary'])); ?></p>
                         </div>
+                        <?php if ($isWhodunit && !empty($suspectProfiles)): ?>
+                            <!-- Suspect Profiles for Whodunit -->
+                            <div class="suspect-profiles" style="margin-top: 40px; padding-top: 30px; border-top: 3px solid #8b4513;">
+                                <h3 style="color: #8b4513; font-size: 24px; margin-bottom: 25px; text-transform: uppercase; letter-spacing: 2px; font-family: 'Courier New', monospace;">👥 Suspects</h3>
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-top: 20px;">
+                                    <?php foreach ($suspectProfiles as $suspect): ?>
+                                        <div class="suspect-card" style="background: #f9f9f9; border: 2px solid #8b4513; padding: 20px; border-radius: 6px;">
+                                            <h4 style="color: #8b4513; font-size: 20px; margin-bottom: 12px; font-weight: 700;"><?php echo htmlspecialchars($suspect['suspect_name']); ?></h4>
+                                            <p style="color: #333; line-height: 1.6; font-size: 15px;"><?php echo nl2br(htmlspecialchars($suspect['profile_text'])); ?></p>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+                        <?php endif; ?>
                         <div class="section-navigation">
                             <button class="btn btn-back" style="visibility: hidden;">← Back</button>
-                            <button class="btn continue-btn" onclick="showNextSection()">Continue to Report →</button>
+                            <button class="btn continue-btn" onclick="showNextSection()">
+                                <?php echo ($isWhodunit && !empty($witnessStatements)) ? 'View Witness Statements →' : 'Continue to Report →'; ?>
+                            </button>
                         </div>
                     </div>
-
-                    <?php
-                    // Parse report text into sections
+                    
+                    <?php 
+                    // Parse report text into sections (before witness statements for proper indexing)
                     $reportText = $todaysPuzzle['report_text'];
-                    // Split by double newlines first, then check for ** markers
                     $rawSections = preg_split('/\n\n+/', $reportText);
                     $sections = [];
                     
@@ -721,34 +773,141 @@ if (EnvLoader::get('APP_ENV') === 'development') {
                         $trimmed = trim($rawSection);
                         if ($trimmed === '') continue;
                         
-                        // Check if section starts with ** (title)
                         if (preg_match('/^\*\*(.*?)\*\*\s*:?\s*/', $trimmed, $titleMatch)) {
                             $title = trim($titleMatch[1]);
-                            // Remove the title and any trailing colon/whitespace
                             $content = preg_replace('/^\*\*(.*?)\*\*\s*:?\s*/', '', $trimmed);
                             $content = trim($content);
-                            // Remove leading colon if it exists
                             $content = preg_replace('/^:\s*/', '', $content);
                         } else {
                             $title = '';
                             $content = $trimmed;
-                            // Remove leading colon if it exists
                             $content = preg_replace('/^:\s*/', '', $content);
                         }
                         
-                        // Clean up any remaining leading punctuation issues
                         $content = trim($content);
-                        
                         $sections[] = ['title' => $title, 'content' => $content];
                     endforeach;
                     
-                    $sectionIndex = 1;
-                    $totalReportSections = count($sections);
+                    // Merge sections: if a section has only a title and no content, merge it with the next section
+                    $mergedSections = [];
+                    $i = 0;
+                    while ($i < count($sections)) {
+                        $current = $sections[$i];
+                        
+                        // If current section has a title but no/empty content, check next section
+                        if (!empty($current['title']) && empty($current['content']) && $i + 1 < count($sections)) {
+                            $next = $sections[$i + 1];
+                            // If next section has content but no title, merge them
+                            if (empty($next['title']) && !empty($next['content'])) {
+                                $mergedSections[] = ['title' => $current['title'], 'content' => $next['content']];
+                                $i += 2; // Skip both sections
+                                continue;
+                            }
+                        }
+                        
+                        $mergedSections[] = $current;
+                        $i++;
+                    }
+                    $sections = $mergedSections;
+                    
+                    $hasWitnessStatements = $isWhodunit && !empty($witnessStatements);
+                    ?>
+                    
+                    <?php if ($hasWitnessStatements): ?>
+                        <!-- Witness Statements Section (Whodunit only) -->
+                        <div class="info-section" data-section="1">
+                            <div class="witness-statements" style="margin-top: 20px;">
+                                <h3 style="color: #8b4513; font-size: 24px; margin-bottom: 25px; text-transform: uppercase; letter-spacing: 2px; font-family: 'Courier New', monospace;">📋 Witness Statements</h3>
+                                <?php foreach ($witnessStatements as $witness): ?>
+                                    <div class="witness-statement" style="background: #fff; border-left: 4px solid #8b4513; padding: 20px; margin-bottom: 25px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                                        <div style="display: flex; align-items: center; margin-bottom: 12px;">
+                                            <strong style="color: #8b4513; font-size: 18px; font-family: 'Courier New', monospace;"><?php echo htmlspecialchars($witness['witness_name']); ?></strong>
+                                            <span style="margin-left: auto; color: #999; font-size: 14px; font-style: italic;">Witness Statement</span>
+                                        </div>
+                                        <p style="color: #333; line-height: 1.8; font-size: 16px; margin: 0;"><?php echo nl2br(htmlspecialchars($witness['statement_text'])); ?></p>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                            <div class="section-navigation">
+                                <button class="btn btn-back" onclick="showPreviousSection()">← Back</button>
+                                <button class="btn continue-btn" onclick="showNextSection()">Continue to Report →</button>
+                            </div>
+                        </div>
+                    <?php endif; ?>
+
+                    <?php
+                    // Report sections (already parsed above, just calculate indices)
+                    $sectionIndex = $hasWitnessStatements ? 2 : 1;
+                    $totalReportSections = count($sections) + ($hasWitnessStatements ? 1 : 0);
                     
                     foreach ($sections as $section):
-                        // Format the content
-                        $formattedContent = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $section['content']);
-                        $formattedContent = nl2br($formattedContent);
+                        // Convert bullet point lists (lines starting with * or -) to proper HTML lists
+                        // Process the content line by line
+                        $content = $section['content'];
+                        $lines = explode("\n", $content);
+                        $inList = false;
+                        $listItems = [];
+                        $output = [];
+                        
+                        foreach ($lines as $line) {
+                            $trimmed = trim($line);
+                            // Check if line is a bullet point (starts with * or -)
+                            if (preg_match('/^[\*\-]\s+(.+)$/', $trimmed, $match)) {
+                                if (!$inList) {
+                                    // Start a new list
+                                    $inList = true;
+                                    $listItems = [];
+                                }
+                                $listItems[] = trim($match[1]); // Store the bullet point text
+                            } else {
+                                if ($inList) {
+                                    // Close the current list
+                                    if (!empty($listItems)) {
+                                        $output[] = '<ul style="margin: 15px 0; padding-left: 25px; list-style-type: disc;">';
+                                        foreach ($listItems as $item) {
+                                            // Escape HTML first (asterisks ** are not escaped by htmlspecialchars)
+                                            $escapedItem = htmlspecialchars($item, ENT_QUOTES, 'UTF-8');
+                                            // Then convert markdown **text** to <strong>text</strong>
+                                            $formattedItem = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $escapedItem);
+                                            $output[] = '<li style="margin: 8px 0; line-height: 1.6;">' . $formattedItem . '</li>';
+                                        }
+                                        $output[] = '</ul>';
+                                    }
+                                    $listItems = [];
+                                    $inList = false;
+                                }
+                                // Handle non-list lines
+                                if (!empty($trimmed)) {
+                                    // Escape HTML first (doesn't escape **), then convert markdown
+                                    $escapedLine = htmlspecialchars($line, ENT_QUOTES, 'UTF-8');
+                                    $formattedLine = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $escapedLine);
+                                    $output[] = '<p style="margin: 12px 0; line-height: 1.6;">' . nl2br($formattedLine) . '</p>';
+                                } else {
+                                    // Empty line - just add spacing
+                                    $output[] = '<br>';
+                                }
+                            }
+                        }
+                        
+                        // Close any remaining list at the end
+                        if ($inList && !empty($listItems)) {
+                            $output[] = '<ul style="margin: 15px 0; padding-left: 25px; list-style-type: disc;">';
+                            foreach ($listItems as $item) {
+                                // Escape HTML first (asterisks ** are not escaped by htmlspecialchars)
+                                $escapedItem = htmlspecialchars($item, ENT_QUOTES, 'UTF-8');
+                                // Then convert markdown **text** to <strong>text</strong>
+                                $formattedItem = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $escapedItem);
+                                $output[] = '<li style="margin: 8px 0; line-height: 1.6;">' . $formattedItem . '</li>';
+                            }
+                            $output[] = '</ul>';
+                        }
+                        
+                        // If no output was generated (empty content), add empty paragraph
+                        if (empty($output)) {
+                            $output[] = '<p></p>';
+                        }
+                        
+                        $formattedContent = implode('', $output);
                     ?>
                         <div class="info-section" data-section="<?php echo $sectionIndex; ?>">
                             <div class="report-section">

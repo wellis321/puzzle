@@ -61,16 +61,37 @@ class Puzzle {
      * Get puzzle by date
      * @param string $date Date in YYYY-MM-DD format
      * @param string|null $difficulty Optional difficulty filter
+     * @param string|null $puzzleType Optional puzzle type filter ('standard', 'whodunit')
      * @return array|false Returns puzzle array or false if not found
      */
-    public function getPuzzleByDate($date, $difficulty = null) {
+    public function getPuzzleByDate($date, $difficulty = null, $puzzleType = null) {
+        // Check if puzzle_type column exists
+        $hasPuzzleTypeColumn = false;
+        try {
+            $columnCheck = $this->db->query("SHOW COLUMNS FROM puzzles LIKE 'puzzle_type'");
+            $hasPuzzleTypeColumn = $columnCheck->rowCount() > 0;
+        } catch (Exception $e) {
+            $hasPuzzleTypeColumn = false;
+        }
+        
         if ($difficulty) {
-            $stmt = $this->db->prepare("
-                SELECT * FROM puzzles 
-                WHERE puzzle_date = ? AND difficulty = ?
-                LIMIT 1
-            ");
-            $stmt->execute([$date, $difficulty]);
+            if ($hasPuzzleTypeColumn && $puzzleType) {
+                // Check for specific puzzle_type
+                $stmt = $this->db->prepare("
+                    SELECT * FROM puzzles 
+                    WHERE puzzle_date = ? AND difficulty = ? AND puzzle_type = ?
+                    LIMIT 1
+                ");
+                $stmt->execute([$date, $difficulty, $puzzleType]);
+            } else {
+                // Standard check (backward compatible)
+                $stmt = $this->db->prepare("
+                    SELECT * FROM puzzles 
+                    WHERE puzzle_date = ? AND difficulty = ?
+                    LIMIT 1
+                ");
+                $stmt->execute([$date, $difficulty]);
+            }
         } else {
             // Default to medium if no difficulty specified
             $stmt = $this->db->prepare("
@@ -185,18 +206,44 @@ class Puzzle {
      * Create a new puzzle
      */
     public function createPuzzle($data) {
-        $stmt = $this->db->prepare("
-            INSERT INTO puzzles (puzzle_date, title, difficulty, theme, case_summary, report_text)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ");
-        $stmt->execute([
-            $data['puzzle_date'],
-            $data['title'],
-            $data['difficulty'],
-            $data['theme'],
-            $data['case_summary'],
-            $data['report_text']
-        ]);
+        // Check if puzzle_type column exists
+        $hasPuzzleTypeColumn = false;
+        try {
+            $columnCheck = $this->db->query("SHOW COLUMNS FROM puzzles LIKE 'puzzle_type'");
+            $hasPuzzleTypeColumn = $columnCheck->rowCount() > 0;
+        } catch (Exception $e) {
+            $hasPuzzleTypeColumn = false;
+        }
+        
+        // Build query based on available columns
+        if ($hasPuzzleTypeColumn && isset($data['puzzle_type'])) {
+            $stmt = $this->db->prepare("
+                INSERT INTO puzzles (puzzle_date, title, difficulty, puzzle_type, theme, case_summary, report_text)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ");
+            $stmt->execute([
+                $data['puzzle_date'],
+                $data['title'],
+                $data['difficulty'],
+                $data['puzzle_type'],
+                $data['theme'],
+                $data['case_summary'],
+                $data['report_text']
+            ]);
+        } else {
+            $stmt = $this->db->prepare("
+                INSERT INTO puzzles (puzzle_date, title, difficulty, theme, case_summary, report_text)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ");
+            $stmt->execute([
+                $data['puzzle_date'],
+                $data['title'],
+                $data['difficulty'],
+                $data['theme'],
+                $data['case_summary'],
+                $data['report_text']
+            ]);
+        }
         return $this->db->lastInsertId();
     }
 

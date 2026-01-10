@@ -1,7 +1,7 @@
 <?php
 /**
  * AI Puzzle Generator
- * Supports multiple AI providers: Gemini, Groq, OpenAI, Local Llama (Ollama)
+ * Supports multiple AI providers: Claude (Anthropic), Gemini, Groq, OpenAI, Local Llama (Ollama)
  */
 
 class AIPuzzleGenerator {
@@ -10,7 +10,7 @@ class AIPuzzleGenerator {
     private $baseUrl;
     private $model;
 
-    public function __construct($provider = 'gemini') {
+    public function __construct($provider = 'claude') {
         $this->provider = $provider;
         $this->loadApiKey();
         $this->setBaseUrl();
@@ -26,6 +26,9 @@ class AIPuzzleGenerator {
 
     private function loadApiKey() {
         switch ($this->provider) {
+            case 'claude':
+                $this->apiKey = EnvLoader::get('ANTHROPIC_API_KEY');
+                break;
             case 'gemini':
                 $this->apiKey = EnvLoader::get('GEMINI_API_KEY');
                 break;
@@ -45,12 +48,21 @@ class AIPuzzleGenerator {
         }
 
         if (empty($this->apiKey) && !in_array($this->provider, ['local', 'llama'])) {
-            throw new Exception("API key not found for {$this->provider}. Add {$this->provider}_API_KEY to .env file.");
+            $envKeyName = strtoupper($this->provider) . '_API_KEY';
+            if ($this->provider === 'claude') {
+                $envKeyName = 'ANTHROPIC_API_KEY';
+            }
+            throw new Exception("API key not found for {$this->provider}. Add {$envKeyName} to .env file.");
         }
     }
 
     private function setBaseUrl() {
         switch ($this->provider) {
+            case 'claude':
+                // Use Claude 3.5 Sonnet (latest version)
+                $this->model = 'claude-3-5-sonnet-20241022';
+                $this->baseUrl = 'https://api.anthropic.com/v1/messages';
+                break;
             case 'gemini':
                 // Try different model names - start with latest
                 // Available models: gemini-pro, gemini-1.5-flash, gemini-1.5-pro
@@ -75,7 +87,7 @@ class AIPuzzleGenerator {
         }
     }
 
-    public function generatePuzzle($date, $difficulty, $generateImage = false, $avoidSimilar = true) {
+    public function generatePuzzle($date, $difficulty, $generateImage = false, $avoidSimilar = true, $puzzleType = 'standard') {
         // Increase execution time for local Llama (can be slow)
         if (in_array($this->provider, ['local', 'llama'])) {
             set_time_limit(180); // 3 minutes per puzzle
@@ -87,9 +99,18 @@ class AIPuzzleGenerator {
             $recentPuzzles = $this->getRecentPuzzles($date, 14); // Check last 14 days
         }
         
-        $prompt = $this->buildPrompt($difficulty, $recentPuzzles);
+        // Use different prompt builder for whodunits
+        if ($puzzleType === 'whodunit') {
+            $prompt = $this->buildWhodunitPrompt($difficulty, $recentPuzzles);
+        } else {
+            $prompt = $this->buildPrompt($difficulty, $recentPuzzles);
+        }
+        
         $response = $this->callAI($prompt);
         $puzzle = $this->parseResponse($response, $difficulty);
+        
+        // Add puzzle type to response
+        $puzzle['puzzle_type'] = $puzzleType;
         
         // Store any image generation errors
         $puzzle['image_generation_error'] = null;
@@ -398,6 +419,121 @@ CRITICAL: Exactly ONE statement must have \"is_correct\": true - place it at a R
     }
     
     /**
+     * Build prompt for whodunit murder mystery puzzles
+     */
+    private function buildWhodunitPrompt($difficulty, $recentPuzzles = []) {
+        $difficultyInstructions = [
+            'easy' => 'Easy: Make the killer obvious from witness statements. Include clear clues pointing to one suspect.',
+            'medium' => 'Medium: Make the killer moderately difficult to identify. Include red herrings and conflicting evidence.',
+            'hard' => 'Hard: Make the killer very difficult to identify. Include complex alibis, multiple suspects with motives, and subtle clues.'
+        ];
+
+        // Build variety instructions
+        $varietyInstructions = $this->buildVarietyInstructions($recentPuzzles);
+        
+        $prompt = "Create a comprehensive WHODUNIT murder mystery puzzle in JSON format. This is a full-blown murder mystery where players must identify the killer based on witness statements and evidence.
+
+CRITICAL VARIETY REQUIREMENTS:
+{$varietyInstructions}
+
+DIFFICULTY: {$difficultyInstructions[$difficulty]}
+
+WHODUNIT STRUCTURE:
+You must create a complete murder mystery case with the following components:
+
+1. CASE SUMMARY (2-4 sentences):
+   - Describe the murder scene, victim, and basic circumstances
+   - Set the scene and establish key facts
+   - Make it engaging and atmospheric
+
+2. SUSPECT PROFILES (4-5 suspects required):
+   - Create 4-5 distinct suspects with names
+   - Each suspect needs: name, relationship to victim, motive, basic background
+   - One suspect is the killer (make this solvable through evidence)
+   - Format: Array of objects with 'suspect_name' and 'profile_text'
+
+3. WITNESS STATEMENTS (4-6 statements required):
+   - Each statement should be from a named witness
+   - Include what they saw, heard, or know
+   - Mix of alibis, observations, timelines, and suspicious behavior
+   - Some statements should point to the killer, others are red herrings
+   - Format: Array of objects with 'witness_name' and 'statement_text'
+
+4. INCIDENT REPORT:
+   - Detailed report with sections (use **section_name** for headers)
+   - Include: Crime scene details, timeline, forensic evidence, witness accounts summary
+   - Multiple sections with specific facts, times, locations, and evidence
+
+5. EVIDENCE STATEMENTS (6-8 statements required):
+   - These are the clickable options players must analyze
+   - CRITICAL: Evidence statements MUST ONLY reference information already mentioned in the case summary, incident report, suspect profiles, or witness statements
+   - DO NOT introduce new locations, objects, or facts that weren't already described
+   - DO NOT add new information like \"had a troubled past\", \"was secretly working on\", \"used in a previous argument\" unless these were mentioned in the source material
+   - Each statement must be PLAUSIBLE EVIDENCE that could point to a suspect - not filler or obviously irrelevant information
+   - ALL statements should be based on actual facts from the report, witness statements, or suspect profiles
+   - ONE statement must be the \"smoking gun\" that reveals or strongly implicates the killer by connecting existing evidence
+   - Other statements should reference REAL evidence from the report that points to wrong suspects (these are red herrings but must be plausible)
+   - Red herrings should still be legitimate evidence (like fabric matching a dress, timeline events, witness observations) that just happens to point to the wrong person
+   - The correct statement (is_correct: true) should be the giveaway about who the killer was by connecting multiple pieces of evidence
+   - Include 'suspect_name' field in the correct statement with the killer's name
+   - Example of GOOD evidence: \"The torn fabric matched Vivian's dress mentioned in the crime scene report\" (references existing evidence from report)
+   - Example of GOOD red herring: \"Witnesses saw James and Vivian talking in the library at 10:00 PM\" (real event from timeline, but doesn't prove guilt)
+   - Example of BAD evidence: \"Thomas had a troubled past\" (new information not in report)
+   - Example of BAD evidence: \"A hidden safe in the study contained...\" (introduces new location/object not mentioned in the report)
+   - Example of BAD evidence: \"Alexander used this phrase in a previous argument\" (new information not in report - stick to what's in the timeline/evidence)
+
+6. HINTS (2 hints):
+   - Progressive hints guiding players toward the correct suspect/evidence
+
+7. SOLUTION:
+   - Must explicitly identify the killer
+   - Explain WHY the correct evidence statement reveals the killer
+   - Provide detailed reasoning connecting all the clues
+
+REQUIRED JSON STRUCTURE:
+{
+  \"title\": \"[Creative murder mystery title]\",
+  \"theme\": \"[Theme, e.g., 'Mansion Murder', 'Theater Crime']\",
+  \"case_summary\": \"[2-4 sentence murder scene description]\",
+  \"suspect_profiles\": [
+    {\"suspect_name\": \"[Name]\", \"profile_text\": \"[Background, relationship, motive]\"}
+  ],
+  \"witness_statements\": [
+    {\"witness_name\": \"[Name]\", \"statement_text\": \"[What they witnessed]\"}
+  ],
+  \"report_text\": \"[Detailed incident report with **section headers**]\",
+  \"statements\": [
+    {\"text\": \"[Evidence statement that reveals/implicates killer]\", \"is_correct\": true, \"category\": \"evidence\", \"suspect_name\": \"[Name of killer]\"},
+    {\"text\": \"[Other evidence statement]\", \"is_correct\": false, \"category\": \"evidence\"}
+  ],
+  \"hints\": [\"[First hint]\", \"[Second hint]\"],
+  \"solution\": {
+    \"explanation\": \"[2-4 sentences identifying the killer and why]\",
+    \"detailed_reasoning\": \"[4-8 sentences explaining how evidence points to the killer]\"
+  }
+}
+
+CRITICAL REQUIREMENTS:
+- The killer must be solvable through the evidence statements
+- The correct statement (is_correct: true) MUST reveal or strongly implicate the killer by connecting evidence from the report
+- Include the killer's name in the suspect_name field of the correct statement
+- EVIDENCE STATEMENTS MUST ONLY REFERENCE INFORMATION FROM: case_summary, report_text, suspect_profiles, or witness_statements
+- DO NOT introduce new locations (e.g., \"a hidden safe\", \"the basement\"), new objects, or new facts not mentioned in the source material
+- DO NOT add background information like \"had a troubled past\", \"was secretly working on\", \"used in previous arguments\" unless explicitly mentioned in the source material
+- ALL evidence statements must reference REAL information from the report (timeline events, forensic evidence, witness observations)
+- Red herrings should reference actual evidence from the report that just happens to point to the wrong suspect
+- Make ALL statements plausible and relevant - no filler or obviously irrelevant information
+- Each statement should make players think \"this could be the evidence that solves it\" - not \"why is this here?\"
+- Players must be able to verify all evidence statements by checking them against the provided case summary, report, and witness statements
+- If you mention a location, object, fact, or background detail in an evidence statement, it MUST have been mentioned first in the case summary, report, suspect profiles, or witness statements
+- Quality check: Every statement should be plausible evidence that could contribute to solving the case
+
+Generate the JSON now:";
+
+        return $prompt;
+    }
+    
+    /**
      * Build instructions to avoid similarity with recent puzzles
      */
     private function buildVarietyInstructions($recentPuzzles) {
@@ -442,6 +578,8 @@ CRITICAL: Exactly ONE statement must have \"is_correct\": true - place it at a R
 
     private function callAI($prompt) {
         switch ($this->provider) {
+            case 'claude':
+                return $this->callClaude($prompt);
             case 'gemini':
                 return $this->callGemini($prompt);
             case 'groq':
@@ -453,6 +591,61 @@ CRITICAL: Exactly ONE statement must have \"is_correct\": true - place it at a R
             default:
                 throw new Exception("Unsupported provider: {$this->provider}");
         }
+    }
+
+    private function callClaude($prompt) {
+        $data = [
+            'model' => $this->model,
+            'max_tokens' => 4096,
+            'messages' => [
+                ['role' => 'user', 'content' => $prompt]
+            ]
+        ];
+
+        $headers = [
+            'Content-Type: application/json',
+            'x-api-key: ' . $this->apiKey,
+            'anthropic-version: 2023-06-01'
+        ];
+
+        $ch = curl_init($this->baseUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        if ($httpCode !== 200) {
+            $errorData = json_decode($response, true);
+            $errorMessage = $response;
+            
+            if (isset($errorData['error'])) {
+                $errorMessage = $errorData['error']['message'] ?? $response;
+                $errorType = $errorData['error']['type'] ?? '';
+                
+                // Provide helpful error messages
+                if ($httpCode === 401) {
+                    throw new Exception("Invalid Anthropic API key. Please check your ANTHROPIC_API_KEY in .env file. Note: Claude Pro subscription does not include API access - you need a separate Anthropic Console account at https://console.anthropic.com");
+                } elseif ($httpCode === 429) {
+                    throw new Exception("Anthropic API rate limit reached. Please try again later or check your API usage limits.");
+                }
+            }
+            
+            throw new Exception("Claude API error (HTTP {$httpCode}): " . $errorMessage);
+        }
+
+        $result = json_decode($response, true);
+        
+        // Anthropic returns content as an array of blocks
+        if (isset($result['content'][0]['text'])) {
+            return $result['content'][0]['text'];
+        }
+        
+        throw new Exception("Unexpected Claude API response format");
     }
 
     private function callGemini($prompt) {
@@ -671,14 +864,14 @@ CRITICAL: Exactly ONE statement must have \"is_correct\": true - place it at a R
             throw new Exception("Could not extract JSON from AI response");
         }
         
-        // Enhanced JSON cleaning function
+        // Enhanced JSON cleaning function with Unicode support
         $json_clean_string = function($str) {
             // Remove BOM if present
             if (substr($str, 0, 3) === "\xEF\xBB\xBF") {
                 $str = substr($str, 3);
             }
             
-            // Remove control characters except newlines, tabs, and carriage returns
+            // Remove ASCII control characters except newlines, tabs, and carriage returns
             $str = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $str);
             
             // Decode HTML entities
@@ -687,8 +880,12 @@ CRITICAL: Exactly ONE statement must have \"is_correct\": true - place it at a R
             // Fix common encoding issues
             $str = mb_convert_encoding($str, 'UTF-8', 'UTF-8');
             
-            // Remove any remaining non-printable characters (keep newlines, tabs, carriage returns)
-            $str = preg_replace('/[^\x20-\x7E\x0A\x0D\x09]/u', '', $str);
+            // Remove all Unicode control, format, and surrogate characters
+            // This catches Unicode control characters that ASCII-only regex misses
+            // \p{Cc} = Unicode Control characters
+            // \p{Cf} = Format characters (like zero-width spaces)
+            // \p{Cs} = Surrogate characters
+            $str = preg_replace('/[\p{Cc}\p{Cf}\p{Cs}]/u', '', $str);
             
             return $str;
         };
@@ -696,12 +893,23 @@ CRITICAL: Exactly ONE statement must have \"is_correct\": true - place it at a R
         // Apply cleaning
         $jsonStr = $json_clean_string($jsonStr);
         
+        // #region agent log
+        $logData = json_encode(['location' => 'AIPuzzleGenerator.php:806', 'message' => 'About to parse JSON', 'data' => ['json_length' => strlen($jsonStr), 'first_300' => substr($jsonStr, 0, 300), 'last_300' => substr($jsonStr, -300), 'hypothesisId' => 'A,B'], 'timestamp' => time(), 'sessionId' => 'debug-session', 'runId' => 'run1']);
+        file_put_contents('/Users/wellis/Desktop/Cursor/puzzle/.cursor/debug.log', $logData . "\n", FILE_APPEND);
+        // #endregion
+        
         $puzzle = json_decode($jsonStr, true);
+        
+        // #region agent log
+        $parseError = json_last_error();
+        $parseErrorMsg = json_last_error_msg();
+        $logData = json_encode(['location' => 'AIPuzzleGenerator.php:812', 'message' => 'JSON decode result', 'data' => ['error_code' => $parseError, 'error_msg' => $parseErrorMsg, 'puzzle_is_null' => ($puzzle === null), 'puzzle_type' => gettype($puzzle), 'puzzle_keys' => is_array($puzzle) ? array_keys($puzzle) : 'not_array', 'has_title' => is_array($puzzle) ? isset($puzzle['title']) : false, 'hypothesisId' => 'A,B'], 'timestamp' => time(), 'sessionId' => 'debug-session', 'runId' => 'run1']);
+        file_put_contents('/Users/wellis/Desktop/Cursor/puzzle/.cursor/debug.log', $logData . "\n", FILE_APPEND);
+        // #endregion
 
         if (json_last_error() !== JSON_ERROR_NONE) {
-            // Try more aggressive cleaning
-            // Remove all non-ASCII except common punctuation and newlines
-            $jsonStr = preg_replace('/[^\x20-\x7E\x0A\x0D\x09]/u', '', $jsonStr);
+            // Try more aggressive cleaning - remove all non-printable characters
+            $jsonStr = preg_replace('/[\p{Cc}\p{Cf}\p{Cs}]/u', '', $jsonStr);
             
             $puzzle = json_decode($jsonStr, true);
             
@@ -720,11 +928,46 @@ CRITICAL: Exactly ONE statement must have \"is_correct\": true - place it at a R
             }
         }
 
-        // Validate required fields
+        // #region agent log
+        $logData = json_encode(['location' => 'AIPuzzleGenerator.php:838', 'message' => 'Before validation - check parsed puzzle structure', 'data' => ['puzzle_is_null' => ($puzzle === null), 'puzzle_is_array' => is_array($puzzle), 'puzzle_keys' => is_array($puzzle) ? array_keys($puzzle) : 'not_array', 'puzzle_count' => is_array($puzzle) ? count($puzzle) : 0, 'json_length' => strlen($jsonStr), 'last_200_chars' => substr($jsonStr, -200), 'hypothesisId' => 'A,B'], 'timestamp' => time(), 'sessionId' => 'debug-session', 'runId' => 'run1']);
+        file_put_contents('/Users/wellis/Desktop/Cursor/puzzle/.cursor/debug.log', $logData . "\n", FILE_APPEND);
+        // #endregion
+        
+        // Validate required fields (different for whodunits)
+        $isWhodunit = isset($puzzle['suspect_profiles']) || isset($puzzle['witness_statements']);
+        
         $required = ['title', 'theme', 'case_summary', 'report_text', 'statements', 'hints', 'solution'];
+        if ($isWhodunit) {
+            $required[] = 'suspect_profiles';
+            $required[] = 'witness_statements';
+        }
+        
+        // #region agent log
+        $missingFields = [];
+        foreach ($required as $field) {
+            if (!isset($puzzle[$field])) {
+                $missingFields[] = $field;
+            }
+        }
+        if (!empty($missingFields)) {
+            $logData = json_encode(['location' => 'AIPuzzleGenerator.php:847', 'message' => 'Missing required fields detected', 'data' => ['missing_fields' => $missingFields, 'present_fields' => is_array($puzzle) ? array_keys($puzzle) : 'not_array', 'hypothesisId' => 'A,B'], 'timestamp' => time(), 'sessionId' => 'debug-session', 'runId' => 'run1']);
+            file_put_contents('/Users/wellis/Desktop/Cursor/puzzle/.cursor/debug.log', $logData . "\n", FILE_APPEND);
+        }
+        // #endregion
+        
         foreach ($required as $field) {
             if (!isset($puzzle[$field])) {
                 throw new Exception("Missing required field: {$field}");
+            }
+        }
+        
+        // Ensure whodunit-specific data is present
+        if ($isWhodunit) {
+            if (empty($puzzle['suspect_profiles']) || !is_array($puzzle['suspect_profiles'])) {
+                throw new Exception("Whodunit puzzles require suspect_profiles array");
+            }
+            if (empty($puzzle['witness_statements']) || !is_array($puzzle['witness_statements'])) {
+                throw new Exception("Whodunit puzzles require witness_statements array");
             }
         }
         
@@ -847,15 +1090,45 @@ CRITICAL: Exactly ONE statement must have \"is_correct\": true - place it at a R
             return ['valid' => false, 'warnings' => ['No correct statement found']];
         }
         
-        // Combine summary and report text for analysis
+        // Combine all source material for analysis (for whodunits, include suspect profiles and witness statements)
+        $isWhodunit = isset($puzzle['suspect_profiles']) || isset($puzzle['witness_statements']);
+        
         $allText = strtolower($puzzle['case_summary'] . ' ' . $puzzle['report_text']);
+        
+        // For whodunits, also include suspect profiles and witness statements as source material
+        if ($isWhodunit) {
+            $witnessText = '';
+            if (isset($puzzle['witness_statements']) && is_array($puzzle['witness_statements'])) {
+                foreach ($puzzle['witness_statements'] as $witness) {
+                    $witnessText .= ' ' . ($witness['statement_text'] ?? '');
+                }
+            }
+            
+            $suspectText = '';
+            if (isset($puzzle['suspect_profiles']) && is_array($puzzle['suspect_profiles'])) {
+                foreach ($puzzle['suspect_profiles'] as $suspect) {
+                    $suspectText .= ' ' . ($suspect['profile_text'] ?? '');
+                }
+            }
+            
+            $allText .= $witnessText . ' ' . $suspectText;
+        }
+        
         $correctText = strtolower($correctStatement['text']);
         
-        // Extract key facts from summary/report (times, numbers, locations, dates)
+        // Extract key facts from summary/report (times, numbers, locations, dates, objects, entities)
         $facts = $this->extractFacts($allText);
         
         // Extract facts from correct statement
         $statementFacts = $this->extractFacts($correctText);
+        
+        // For whodunits, check if evidence statements reference new information not in source material
+        if ($isWhodunit) {
+            $newEntitiesWarning = $this->checkForNewEntities($allText, $puzzle['statements']);
+            if (!empty($newEntitiesWarning)) {
+                $warnings = array_merge($warnings, $newEntitiesWarning);
+            }
+        }
         
         // Check for contradictions
         $contradictionsFound = [];
@@ -995,6 +1268,60 @@ CRITICAL: Exactly ONE statement must have \"is_correct\": true - place it at a R
         }
         
         return $facts;
+    }
+    
+    /**
+     * Check if evidence statements reference entities/locations/objects not mentioned in source material
+     * For whodunits, this ensures players can verify all evidence from the provided information
+     */
+    private function checkForNewEntities($sourceText, $statements) {
+        $warnings = [];
+        $sourceLower = strtolower($sourceText);
+        
+        // Extract key entities from source: locations, objects, containers
+        $locationKeywords = ['room', 'study', 'garden', 'office', 'kitchen', 'bedroom', 'safe', 'drawer', 'desk', 'cabinet', 'basement', 'attic', 'garage', 'hall', 'ballroom', 'library'];
+        $containerKeywords = ['safe', 'drawer', 'desk', 'cabinet', 'box', 'envelope', 'folder', 'briefcase', 'bag', 'pocket'];
+        
+        // Check each statement
+        foreach ($statements as $index => $stmt) {
+            $stmtText = strtolower($stmt['text'] ?? '');
+            
+            // Check for new locations/containers
+            foreach ($locationKeywords as $keyword) {
+                if (stripos($stmtText, $keyword) !== false && stripos($sourceLower, $keyword) === false) {
+                    $warnings[] = "Statement #" . ($index + 1) . " references '{$keyword}' which is not mentioned in the case summary, report, suspect profiles, or witness statements.";
+                    break; // Only warn once per statement
+                }
+            }
+            
+            // Check for new containers (like "safe", "drawer")
+            foreach ($containerKeywords as $keyword) {
+                if (stripos($stmtText, $keyword) !== false && stripos($sourceLower, $keyword) === false) {
+                    $warnings[] = "Statement #" . ($index + 1) . " introduces a new object/location '{$keyword}' that wasn't mentioned in the source material. Evidence must reference existing information.";
+                    break;
+                }
+            }
+            
+            // Check for "found in" or "discovered in" new locations
+            if (stripos($stmtText, 'found in') !== false || stripos($stmtText, 'discovered in') !== false) {
+                // Extract what was found
+                if (preg_match('/(?:found|discovered) in (?:the |a )?(\w+(?:\s+\w+){0,2})/i', $stmtText, $matches)) {
+                    $location = strtolower($matches[1]);
+                    // Check if this location was mentioned in source (allow common ones)
+                    if (stripos($sourceLower, $location) === false && !in_array($location, ['crime scene', 'garden', 'office', 'room', 'study'])) {
+                        // Check if it matches any location keyword
+                        foreach ($locationKeywords as $keyword) {
+                            if (stripos($location, $keyword) !== false) {
+                                $warnings[] = "Statement #" . ($index + 1) . " introduces discovery in '{$location}' which may not have been mentioned in the source material.";
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        return $warnings;
     }
 }
 

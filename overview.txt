@@ -148,6 +148,9 @@ Shareable emoji grid (no spoilers)
 
 🚀 Why This Could Work
 
+The app will need to be in php and mysql as it will nbe in hostinger
+
+
 Daily habit-forming
 
 Low cognitive load

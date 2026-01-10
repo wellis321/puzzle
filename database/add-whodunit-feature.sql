@@ -40,3 +40,4 @@ CREATE TABLE IF NOT EXISTS suspect_profiles (
 -- Add index for faster whodunit queries
 CREATE INDEX idx_whodunit_unlock ON puzzles (puzzle_type, unlock_level);
 
+

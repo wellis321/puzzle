@@ -1,7 +1,7 @@
 <?php
 /**
  * AI Puzzle Generator
- * Generates puzzles using AI API (Gemini, Groq, or OpenAI)
+ * Generates puzzles using AI API (Claude, Gemini, Groq, or OpenAI)
  */
 
 require_once 'auth.php';
@@ -17,8 +17,9 @@ $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate'])) {
     $targetDate = $_POST['puzzle_date'] ?? date('Y-m-d');
     $difficulty = $_POST['difficulty'] ?? 'medium';
-    $aiProvider = $_POST['ai_provider'] ?? 'gemini';
+    $aiProvider = $_POST['ai_provider'] ?? 'claude';
     $generateImage = isset($_POST['generate_image']) && $_POST['generate_image'] === '1';
+    $puzzleType = $_POST['puzzle_type'] ?? 'standard'; // New: whodunit or standard
     
     // Increase execution time for local Llama (can be slow)
     if (in_array($aiProvider, ['local', 'llama'])) {
@@ -30,23 +31,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate'])) {
     $generator = new AIPuzzleGenerator($aiProvider);
     
     try {
-        // Check if puzzle already exists for this date and difficulty
-        $existingPuzzle = $puzzle->getPuzzleByDate($targetDate, $difficulty);
+        // Check if puzzle already exists for this date, difficulty, and puzzle_type
+        // This allows both standard and whodunit puzzles for the same date/difficulty
+        $puzzleTypeForCheck = ($puzzleType === 'whodunit') ? 'whodunit' : 'standard';
+        $existingPuzzle = $puzzle->getPuzzleByDate($targetDate, $difficulty, $puzzleTypeForCheck);
         if ($existingPuzzle) {
-            $error = "A puzzle for {$targetDate} with difficulty '{$difficulty}' already exists. <a href='puzzle-edit.php?id={$existingPuzzle['id']}'>Edit existing puzzle</a>";
+            $typeLabel = ($puzzleType === 'whodunit') ? 'whodunit' : 'standard';
+            $error = "A {$typeLabel} puzzle for {$targetDate} with difficulty '{$difficulty}' already exists. <a href='puzzle-edit.php?id={$existingPuzzle['id']}'>Edit existing puzzle</a>";
         } else {
-            $generatedPuzzle = $generator->generatePuzzle($targetDate, $difficulty, $generateImage);
+            $generatedPuzzle = $generator->generatePuzzle($targetDate, $difficulty, $generateImage, true, $puzzleType);
             
             if ($generatedPuzzle) {
+                // Check if puzzle_type column exists before using it
+                $hasPuzzleTypeColumn = false;
+                try {
+                    $db = Database::getInstance()->getConnection();
+                    $columnCheck = $db->query("SHOW COLUMNS FROM puzzles LIKE 'puzzle_type'");
+                    $hasPuzzleTypeColumn = $columnCheck->rowCount() > 0;
+                } catch (Exception $e) {
+                    // Column doesn't exist - will default to standard
+                }
+                
                 // Save to database
-                $puzzleId = $puzzle->createPuzzle([
+                $puzzleData = [
                     'puzzle_date' => $targetDate,
                     'title' => $generatedPuzzle['title'],
                     'difficulty' => $difficulty,
                     'theme' => $generatedPuzzle['theme'],
                     'case_summary' => $generatedPuzzle['case_summary'],
                     'report_text' => $generatedPuzzle['report_text']
-                ]);
+                ];
+                
+                // Add puzzle_type if column exists
+                if ($hasPuzzleTypeColumn && isset($generatedPuzzle['puzzle_type'])) {
+                    $puzzleData['puzzle_type'] = $generatedPuzzle['puzzle_type'];
+                }
+                
+                $puzzleId = $puzzle->createPuzzle($puzzleData);
                 
                 // Save statements - SHUFFLE them first to randomize position of correct answer
                 $statements = $generatedPuzzle['statements'];
@@ -59,7 +80,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate'])) {
                 }
                 // Now save in shuffled order
                 foreach ($shuffledStatements as $order => $stmt) {
+                    $suspectName = isset($stmt['suspect_name']) ? $stmt['suspect_name'] : null;
+                    // Check if suspect_name column exists before using it
+                    $hasSuspectNameColumn = false;
+                    try {
+                        $db = Database::getInstance()->getConnection();
+                        $columnCheck = $db->query("SHOW COLUMNS FROM statements LIKE 'suspect_name'");
+                        $hasSuspectNameColumn = $columnCheck->rowCount() > 0;
+                    } catch (Exception $e) {
+                        // Column doesn't exist - skip
+                    }
+                    
+                    // For now, createStatement doesn't support suspect_name, so we'll need to update it separately if needed
                     $puzzle->createStatement($puzzleId, $order + 1, $stmt['text'], $stmt['is_correct'], $stmt['category'] ?? 'general');
+                    
+                    // Update suspect_name if column exists and value is provided
+                    if ($hasSuspectNameColumn && $suspectName) {
+                        try {
+                            $updateStmt = $db->prepare("UPDATE statements SET suspect_name = ? WHERE puzzle_id = ? AND statement_order = ?");
+                            $updateStmt->execute([$suspectName, $puzzleId, $order + 1]);
+                        } catch (Exception $e) {
+                            error_log("Could not update suspect_name: " . $e->getMessage());
+                        }
+                    }
+                }
+                
+                // Save whodunit-specific data
+                if ($puzzleType === 'whodunit') {
+                    // Save suspect profiles
+                    if (isset($generatedPuzzle['suspect_profiles']) && is_array($generatedPuzzle['suspect_profiles'])) {
+                        foreach ($generatedPuzzle['suspect_profiles'] as $order => $suspect) {
+                            $puzzle->createSuspectProfile(
+                                $puzzleId,
+                                $order + 1,
+                                $suspect['suspect_name'] ?? '',
+                                $suspect['profile_text'] ?? ''
+                            );
+                        }
+                    }
+                    
+                    // Save witness statements
+                    if (isset($generatedPuzzle['witness_statements']) && is_array($generatedPuzzle['witness_statements'])) {
+                        foreach ($generatedPuzzle['witness_statements'] as $order => $witness) {
+                            $puzzle->createWitnessStatement(
+                                $puzzleId,
+                                $order + 1,
+                                $witness['witness_name'] ?? '',
+                                $witness['statement_text'] ?? ''
+                            );
+                        }
+                    }
                 }
                 
                 // Save hints
@@ -95,12 +165,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate'])) {
                         
                         if ($isBillingError) {
                             $success = "Puzzle generated and saved successfully! ⚠️ <strong>Image generation skipped:</strong> " . htmlspecialchars($imageError) . "<br><small>You can generate images later when billing limits are resolved, or use the 'Generate New AI Image' button on the edit page.</small> <a href='puzzle-edit.php?id={$puzzleId}'>Edit puzzle</a>";
-                        } else {
-                            $success = "Puzzle generated and saved successfully! ⚠️ Image generation failed: " . htmlspecialchars($imageError) . " <a href='puzzle-edit.php?id={$puzzleId}'>Edit puzzle</a>";
+                    } else {
+                        $success = "Puzzle generated and saved successfully! ⚠️ Image generation failed: " . htmlspecialchars($imageError) . " <a href='puzzle-edit.php?id={$puzzleId}'>Edit puzzle</a>";
                         }
                     }
                 } else {
-                    $success = "Puzzle generated and saved successfully! <a href='puzzle-edit.php?id={$puzzleId}'>Edit puzzle</a>";
+                    $puzzleTypeLabel = ($puzzleType === 'whodunit') ? ' 🔍 Whodunit' : '';
+                    $success = "Puzzle generated and saved successfully!{$puzzleTypeLabel} <a href='puzzle-edit.php?id={$puzzleId}'>Edit puzzle</a>";
                 }
             } else {
                 $error = "Failed to generate puzzle. Please check your API key and try again.";
@@ -114,7 +185,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate'])) {
 // Handle batch generation (all 3 difficulties for a date)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_all'])) {
     $targetDate = $_POST['puzzle_date'] ?? date('Y-m-d');
-    $aiProvider = $_POST['ai_provider'] ?? 'gemini';
+    $aiProvider = $_POST['ai_provider'] ?? 'claude';
     $generateImage = isset($_POST['generate_image']) && $_POST['generate_image'] === '1';
     
     // Increase execution time for local Llama (can be slow, especially for batch)
@@ -231,7 +302,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_all'])) {
 // Handle week generation (7 days × 3 difficulties = 21 puzzles)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_week'])) {
     $startDate = $_POST['week_start_date'] ?? date('Y-m-d');
-    $aiProvider = $_POST['ai_provider'] ?? 'gemini';
+    $aiProvider = $_POST['ai_provider'] ?? 'claude';
     $generateImage = isset($_POST['generate_image']) && $_POST['generate_image'] === '1';
     
     // Increase execution time significantly for week generation
@@ -402,13 +473,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_week'])) {
                     <div class="form-group">
                         <label for="ai_provider">AI Provider</label>
                         <select id="ai_provider" name="ai_provider">
-                            <option value="gemini" selected>Google Gemini (Free: 15 req/min)</option>
+                            <option value="claude" selected>Anthropic Claude 3.5 Sonnet (Recommended - High Quality)</option>
+                            <option value="gemini">Google Gemini (Free: 15 req/min)</option>
                             <option value="groq">Groq (Free, Very Fast)</option>
                             <option value="openai">OpenAI GPT-3.5 (Free tier available)</option>
                             <option value="local">Local Llama (Ollama - No API key needed)</option>
                         </select>
                         <small style="color: #666; display: block; margin-top: 5px;">
-                            Add API key to .env: GEMINI_API_KEY, GROQ_API_KEY, or OPENAI_API_KEY<br>
+                            Add API key to .env: ANTHROPIC_API_KEY (Claude), GEMINI_API_KEY, GROQ_API_KEY, or OPENAI_API_KEY<br>
+                            <strong>For Claude:</strong> Get API key at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a>. <strong>Note:</strong> Claude Pro subscription does NOT include API access - requires separate Anthropic Console account.<br>
                             <strong>For local Llama:</strong> Install Ollama from <a href="https://ollama.ai" target="_blank">ollama.ai</a>, then run <code>ollama serve</code> (or start from Applications). Pull a model: <code>ollama pull llama3</code>. Set LOCAL_LLAMA_URL and LOCAL_LLAMA_MODEL in .env (defaults: http://localhost:11434, llama3). <strong>Note:</strong> Local generation can take 1-3 minutes per puzzle - be patient!
                         </small>
                     </div>
@@ -420,6 +493,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_week'])) {
                             <option value="medium" selected>Medium</option>
                             <option value="hard">Hard</option>
                         </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="puzzle_type">Puzzle Type</label>
+                        <select id="puzzle_type" name="puzzle_type">
+                            <option value="standard" selected>Standard Mystery</option>
+                            <option value="whodunit">Whodunit (Murder Mystery)</option>
+                        </select>
+                        <small style="color: #666; display: block; margin-top: 5px;">
+                            <strong>Whodunit:</strong> Comprehensive murder mystery with suspect profiles and witness statements. Unlocks at Rank 3 (Detective) or 10+ solved cases.<br>
+                            <strong>Note:</strong> Whodunit generation takes longer (more complex prompts) - allow 2-5 minutes, especially with local Llama.
+                        </small>
                     </div>
 
                     <div class="form-group">
@@ -466,7 +551,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_week'])) {
                     <div class="form-group">
                         <label for="batch_ai_provider">AI Provider</label>
                         <select id="batch_ai_provider" name="ai_provider">
-                            <option value="gemini" selected>Google Gemini (Free: 15 req/min)</option>
+                            <option value="claude" selected>Anthropic Claude 3.5 Sonnet (Recommended - High Quality)</option>
+                            <option value="gemini">Google Gemini (Free: 15 req/min)</option>
                             <option value="groq">Groq (Free, Very Fast)</option>
                             <option value="openai">OpenAI GPT-3.5 (Free tier available)</option>
                             <option value="local">Local Llama (Ollama - No API key needed)</option>
@@ -519,12 +605,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_week'])) {
                     <div class="form-group">
                         <label for="week_ai_provider">AI Provider</label>
                         <select id="week_ai_provider" name="ai_provider">
-                            <option value="gemini" selected>Google Gemini (Free: 15 req/min)</option>
+                            <option value="claude" selected>Anthropic Claude 3.5 Sonnet (Recommended - High Quality)</option>
+                            <option value="gemini">Google Gemini (Free: 15 req/min)</option>
                             <option value="groq">Groq (Free, Very Fast)</option>
                             <option value="openai">OpenAI GPT-3.5 (Free tier available)</option>
                             <option value="local">Local Llama (Ollama - No API key needed)</option>
                         </select>
                         <small style="color: #666; display: block; margin-top: 5px;">
+                            <strong>For Claude:</strong> Will take approximately 3-5 minutes (high quality output)<br>
                             <strong>For Gemini:</strong> Will take approximately 21 minutes (4 sec delay between requests)<br>
                             <strong>For Groq:</strong> Will take approximately 2-3 minutes<br>
                             <strong>For Local Llama:</strong> Will take approximately 40-60 minutes (can be slow)
@@ -558,8 +646,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_week'])) {
             <div class="form-card" style="margin-top: 30px; background: #f9f9f9;">
                 <h3>📚 Setup Instructions</h3>
                 <ol style="line-height: 2;">
-                    <li><strong>Get a free API key:</strong>
+                    <li><strong>Get an API key:</strong>
                         <ul>
+                            <li><strong>Claude</strong> (Recommended): <a href="https://console.anthropic.com" target="_blank">Get API key</a> - <strong>Note:</strong> Claude Pro subscription does NOT include API access - requires separate Anthropic Console account</li>
                             <li><strong>Gemini</strong>: <a href="https://makersuite.google.com/app/apikey" target="_blank">Get free API key</a> (15 requests/minute)</li>
                             <li><strong>Groq</strong>: <a href="https://console.groq.com/keys" target="_blank">Get free API key</a> (Fast & free)</li>
                             <li><strong>OpenAI</strong>: <a href="https://platform.openai.com/api-keys" target="_blank">Get API key</a> (Free tier available)</li>
@@ -567,7 +656,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_week'])) {
                         </ul>
                     </li>
                     <li><strong>Add to .env file on Hostinger:</strong>
-                        <pre style="background: #fff; padding: 15px; border-radius: 4px; overflow-x: auto;"># For Gemini
+                        <pre style="background: #fff; padding: 15px; border-radius: 4px; overflow-x: auto;"># For Claude (Recommended)
+ANTHROPIC_API_KEY=your_api_key_here
+
+# OR For Gemini
 GEMINI_API_KEY=your_api_key_here
 
 # OR for Groq

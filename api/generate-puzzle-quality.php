@@ -31,7 +31,7 @@ try {
     // Get parameters
     $date = $_GET['date'] ?? $_POST['date'] ?? date('Y-m-d');
     $difficulty = $_GET['difficulty'] ?? $_POST['difficulty'] ?? 'medium';
-    $provider = $_GET['provider'] ?? $_POST['provider'] ?? 'local';
+    $provider = $_GET['provider'] ?? $_POST['provider'] ?? 'claude';
     $generateImage = isset($_GET['generate_image']) ? (bool)$_GET['generate_image'] : (isset($_POST['generate_image']) ? (bool)$_POST['generate_image'] : false);
     $maxRetries = (int)($_GET['max_retries'] ?? $_POST['max_retries'] ?? 3);
     $minQualityScore = (float)($_GET['min_quality_score'] ?? $_POST['min_quality_score'] ?? 0.7);
