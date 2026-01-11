@@ -10,7 +10,7 @@ class AIPuzzleGenerator {
     private $baseUrl;
     private $model;
 
-    public function __construct($provider = 'claude') {
+    public function __construct($provider = 'gemini') {
         $this->provider = $provider;
         $this->loadApiKey();
         $this->setBaseUrl();
@@ -617,7 +617,7 @@ Generate the JSON now:";
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $curlError = curl_error($ch);
-        curl_close($ch);
+        // curl_close() removed - deprecated in PHP 8.5+, not needed since PHP 8.0 (curl handles cleanup automatically)
 
         if ($httpCode !== 200) {
             $errorData = json_decode($response, true);
@@ -630,6 +630,11 @@ Generate the JSON now:";
                 // Provide helpful error messages
                 if ($httpCode === 401) {
                     throw new Exception("Invalid Anthropic API key. Please check your ANTHROPIC_API_KEY in .env file. Note: Claude Pro subscription does not include API access - you need a separate Anthropic Console account at https://console.anthropic.com");
+                } elseif ($httpCode === 400) {
+                    // Check for credit balance errors
+                    if (stripos($errorMessage, 'credit balance') !== false || stripos($errorMessage, 'too low') !== false || stripos($errorMessage, 'billing') !== false) {
+                        throw new Exception("Anthropic API credit balance is too low. Please add credits to your account at https://console.anthropic.com/settings/plans. Note: Claude Pro subscription does not include API access - you need to purchase API credits separately.");
+                    }
                 } elseif ($httpCode === 429) {
                     throw new Exception("Anthropic API rate limit reached. Please try again later or check your API usage limits.");
                 }

@@ -17,7 +17,7 @@ $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate'])) {
     $targetDate = $_POST['puzzle_date'] ?? date('Y-m-d');
     $difficulty = $_POST['difficulty'] ?? 'medium';
-    $aiProvider = $_POST['ai_provider'] ?? 'claude';
+    $aiProvider = $_POST['ai_provider'] ?? 'gemini';
     $generateImage = isset($_POST['generate_image']) && $_POST['generate_image'] === '1';
     $puzzleType = $_POST['puzzle_type'] ?? 'standard'; // New: whodunit or standard
     
@@ -28,9 +28,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate'])) {
     
     // Load AI generator
     require_once '../includes/AIPuzzleGenerator.php';
-    $generator = new AIPuzzleGenerator($aiProvider);
     
     try {
+        $generator = new AIPuzzleGenerator($aiProvider);
         // Check if puzzle already exists for this date, difficulty, and puzzle_type
         // This allows both standard and whodunit puzzles for the same date/difficulty
         $puzzleTypeForCheck = ($puzzleType === 'whodunit') ? 'whodunit' : 'standard';
@@ -185,7 +185,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate'])) {
 // Handle batch generation (all 3 difficulties for a date)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_all'])) {
     $targetDate = $_POST['puzzle_date'] ?? date('Y-m-d');
-    $aiProvider = $_POST['ai_provider'] ?? 'claude';
+    $aiProvider = $_POST['ai_provider'] ?? 'gemini';
     $generateImage = isset($_POST['generate_image']) && $_POST['generate_image'] === '1';
     
     // Increase execution time for local Llama (can be slow, especially for batch)
@@ -194,14 +194,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_all'])) {
     }
     
     require_once '../includes/AIPuzzleGenerator.php';
-    $generator = new AIPuzzleGenerator($aiProvider);
     
     $generated = [];
     $errors = [];
     $imagesGenerated = 0;
     
-    foreach (['easy', 'medium', 'hard'] as $difficulty) {
-        try {
+    try {
+        $generator = new AIPuzzleGenerator($aiProvider);
+        
+        foreach (['easy', 'medium', 'hard'] as $difficulty) {
+            try {
             // Check if puzzle already exists for this date and difficulty
             $existingPuzzle = $puzzle->getPuzzleByDate($targetDate, $difficulty);
             if ($existingPuzzle) {
@@ -270,9 +272,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_all'])) {
                 }
                 $generated[] = $difficultyLabel;
             }
-        } catch (Exception $e) {
-            $errors[] = ucfirst($difficulty) . ": " . $e->getMessage();
+            } catch (Exception $e) {
+                $errors[] = ucfirst($difficulty) . ": " . $e->getMessage();
+            }
         }
+    } catch (Exception $e) {
+        $error = "Error initializing AI generator: " . $e->getMessage();
     }
     
     if (!empty($generated)) {
@@ -302,7 +307,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_all'])) {
 // Handle week generation (7 days × 3 difficulties = 21 puzzles)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_week'])) {
     $startDate = $_POST['week_start_date'] ?? date('Y-m-d');
-    $aiProvider = $_POST['ai_provider'] ?? 'claude';
+    $aiProvider = $_POST['ai_provider'] ?? 'gemini';
     $generateImage = isset($_POST['generate_image']) && $_POST['generate_image'] === '1';
     
     // Increase execution time significantly for week generation
@@ -314,7 +319,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_week'])) {
     }
     
     require_once '../includes/AIPuzzleGenerator.php';
-    $generator = new AIPuzzleGenerator($aiProvider);
+    
+    try {
+        $generator = new AIPuzzleGenerator($aiProvider);
     
     $generated = [];
     $errors = [];
@@ -397,6 +404,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_week'])) {
             }
         }
     }
+    } catch (Exception $e) {
+        $error = "Error initializing AI generator: " . $e->getMessage();
+    }
     
     // Build success message
     if (!empty($generated)) {
@@ -473,8 +483,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_week'])) {
                     <div class="form-group">
                         <label for="ai_provider">AI Provider</label>
                         <select id="ai_provider" name="ai_provider">
-                            <option value="claude" selected>Anthropic Claude 3.5 Sonnet (Recommended - High Quality)</option>
-                            <option value="gemini">Google Gemini (Free: 15 req/min)</option>
+                            <option value="gemini" selected>Google Gemini (Free: 15 req/min)</option>
+                            <option value="claude">Anthropic Claude 3.5 Sonnet (Requires API credits)</option>
                             <option value="groq">Groq (Free, Very Fast)</option>
                             <option value="openai">OpenAI GPT-3.5 (Free tier available)</option>
                             <option value="local">Local Llama (Ollama - No API key needed)</option>
@@ -551,8 +561,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_week'])) {
                     <div class="form-group">
                         <label for="batch_ai_provider">AI Provider</label>
                         <select id="batch_ai_provider" name="ai_provider">
-                            <option value="claude" selected>Anthropic Claude 3.5 Sonnet (Recommended - High Quality)</option>
-                            <option value="gemini">Google Gemini (Free: 15 req/min)</option>
+                            <option value="gemini" selected>Google Gemini (Free: 15 req/min)</option>
+                            <option value="claude">Anthropic Claude 3.5 Sonnet (Requires API credits)</option>
                             <option value="groq">Groq (Free, Very Fast)</option>
                             <option value="openai">OpenAI GPT-3.5 (Free tier available)</option>
                             <option value="local">Local Llama (Ollama - No API key needed)</option>
@@ -605,8 +615,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_week'])) {
                     <div class="form-group">
                         <label for="week_ai_provider">AI Provider</label>
                         <select id="week_ai_provider" name="ai_provider">
-                            <option value="claude" selected>Anthropic Claude 3.5 Sonnet (Recommended - High Quality)</option>
-                            <option value="gemini">Google Gemini (Free: 15 req/min)</option>
+                            <option value="gemini" selected>Google Gemini (Free: 15 req/min)</option>
+                            <option value="claude">Anthropic Claude 3.5 Sonnet (Requires API credits)</option>
                             <option value="groq">Groq (Free, Very Fast)</option>
                             <option value="openai">OpenAI GPT-3.5 (Free tier available)</option>
                             <option value="local">Local Llama (Ollama - No API key needed)</option>
